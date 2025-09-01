@@ -11,7 +11,7 @@ from prompts import pdf_analysis_prompt,email_analysis_prompt,call_analysis_prom
 # import aspose.slides as slides
 import tempfile 
 # Setup API key
-os.environ["GOOGLE_API_KEY"] = "AIzaSyBhlPg4FGWj6VGc5Io-4shslkv2eilAlUs"
+os.environ["GOOGLE_API_KEY"] = "your_google_api_key"
 
 class StartupAnalyzer:
     def __init__(self):
@@ -656,3 +656,4 @@ Sarah: We'll be in touch soon. Great meeting everyone.
     # print("📞 CALL ANALYSIS") 
     # print(f"{'='*50}")
     # print(call_result.get('analysis', call_result.get('error')))
+
