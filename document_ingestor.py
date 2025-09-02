@@ -7,11 +7,14 @@ from pathlib import Path
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
 from pptx import Presentation
-from prompts import pdf_analysis_prompt,email_analysis_prompt,call_analysis_prompt
+from prompts import pdf_analysis_prompt,email_analysis_prompt,call_analysis_prompt,Multimodal_analysis_prompt
 # import aspose.slides as slides
 import tempfile 
+import base64
+from io import BytesIO
+
 # Setup API key
-os.environ["GOOGLE_API_KEY"] = "your_google_api_key"
+os.environ["GOOGLE_API_KEY"] = "your-google-api-key"
 
 class StartupAnalyzer:
     def __init__(self):
@@ -20,45 +23,57 @@ class StartupAnalyzer:
             model="gemini-1.5-flash",
             temperature=0.1
         )
-    # def convert_pptx_to_pdf(self, pptx_path: str) -> str:
-
-    #     """Convert PPTX to PDF using Aspose.Slides."""
-    #     try:
-            
-            
-    #         print(f"🔄 Converting {pptx_path} to PDF using Aspose...")
-            
-    #         # Load presentation
-    #         presentation = slides.Presentation(pptx_path)
-            
-    #         # Create temporary PDF path
-    #         temp_pdf = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
-    #         temp_pdf.close()
-            
-    #         # Save as PDF
-    #         presentation.save(temp_pdf.name, slides.export.SaveFormat.PDF)
-            
-    #         print(f"✅ Successfully converted PPTX to PDF")
-    #         return temp_pdf.name
-            
-    #     except ImportError:
-    #         raise Exception("aspose-slides not installed. Run: pip install aspose-slides")
-    #     except Exception as e:
-    #         raise Exception(f"Aspose conversion failed: {e}")
-
-
-    def extract_text_from_pdf(self, pdf_path: str) -> str:
-        """Extract text from PDF file."""
+        self.multimodal_model = ChatGoogleGenerativeAI(
+        model="gemini-2.0-flash",  # Multimodal model for per-page analysis
+        temperature=0.1
+        )
+    
+    def extract_pdf_pages_content_from_bytes(self,pdf_bytes: bytes) -> List[Dict[str, Any]]:
+        """Extract from PDF bytes (useful for S3/GCS files)."""
         try:
-            doc = fitz.open(pdf_path)
-            text = ""
-            for page in doc:
-                text += page.get_text()
-            doc.close()
-            return text
-        except Exception as e:
-            return f"Error extracting PDF: {str(e)}"
+            print("🔄 Processing PDF from memory with PyMuPDF")
 
+            # Open PDF from bytes
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            pages_data = []
+
+            for page_num in range(doc.page_count):
+                page = doc.load_page(page_num)  # modern method
+                page_text = page.get_text("text")  # modern method
+
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                img_data = pix.tobytes("png")
+                img_base64 = base64.b64encode(img_data).decode('utf-8')
+
+                pages_data.append({
+                    "page_number": page_num + 1,
+                    "text_content": page_text.strip(),
+                    "image_base64": img_base64,
+                    "has_content": True
+                })
+
+                print(f"✅ Processed page {page_num + 1} from memory")
+
+            doc.close()
+            return pages_data
+
+        except Exception as e:
+            print(f"❌ Error processing PDF from bytes: {e}")
+            return []
+
+    def read_pdf_to_bytes(self, pdf_path: str) -> bytes:
+        """Read PDF file into bytes for processing."""
+        try:
+            with open(pdf_path, 'rb') as f:
+                return f.read()
+        except Exception as e:
+            print(f"❌ Error reading PDF file: {e}")
+            return None
+    def create_per_page_multimodal_prompt(self, page_number: int, page_text: str) -> str:
+
+        """Create prompt for analyzing individual PDF page with text + visual."""
+        return Multimodal_analysis_prompt.format(page_number=page_number, page_text=page_text)
+    
     def create_pdf_analysis_prompt(self, pdf_text: str) -> str:
         """Create detailed information extraction prompt for PDF documents."""
         return pdf_analysis_prompt.format(pdf_text=pdf_text)
@@ -71,98 +86,210 @@ class StartupAnalyzer:
     def create_call_analysis_prompt(self, raw_transcript: str) -> str:
         """Create detailed information extraction prompt for raw call transcript."""
         return call_analysis_prompt.format(raw_transcript=raw_transcript)
-
     def analyze_pdf_document(self, pdf_path: str, doc_type: str = "general") -> Dict[str, Any]:
-        """Analyze PDF document (pitch deck, financials, legal docs)."""
+        """Analyze PDF using per-page multimodal approach."""
         try:
-            # Extract text
-            pdf_text = self.extract_text_from_pdf(pdf_path)
-            if pdf_text.startswith("Error"):
-                return {"error": pdf_text, "status": "failed"}
-
-            # Create prompt
-            prompt = self.create_pdf_analysis_prompt(pdf_text)
+            print(f"\n🔄 Starting per-page multimodal PDF analysis: {pdf_path}")
             
-            # Get analysis
-            messages = [HumanMessage(content=prompt)]
-            response = self.text_model.invoke(messages)
+            # Step 1: Extract content and images for each page
+            pdf_bytes = self.read_pdf_to_bytes(pdf_path)
+            pages_data = self.extract_pdf_pages_content_from_bytes(pdf_bytes)
+
+            if not pages_data:
+                return {
+                   "page_number": None,
+                   "text_content": None,
+                   "image_base64": None,
+                   "has_content": False
+                }
+            
+            # Step 2: Analyze each page individually with multimodal model
+            page_analyses = []
+            successful_analyses = 0
+            
+            for page_data in pages_data:
+                page_number = page_data["page_number"]
+                page_text = page_data["text_content"]
+                page_image = page_data["image_base64"]
+                
+                print(f"\n🤖 Analyzing page {page_number} with multimodal AI...")
+                
+                try:
+                    # Create prompt for this specific page
+                    prompt = self.create_per_page_multimodal_prompt(page_number, page_text)
+                    
+                    # Prepare multimodal message content
+                    message_content = [{"type": "text", "text": prompt}]
+                    
+                    # Add page image if available
+                    if page_image:
+                        message_content.append({
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{page_image}"
+                            }
+                        })
+                    
+                    # Send to multimodal model
+                    messages = [HumanMessage(content=message_content)]
+                    response = self.multimodal_model.invoke(messages)
+                    
+                    page_analysis = {
+                        "page_number": page_number,
+                        "text_content": page_text,
+                        "has_image": bool(page_image),
+                        "analysis": response.content,
+                        "status": "success"
+                    }
+                    
+                    successful_analyses += 1
+                    print(f"✅ Page {page_number} analysis completed")
+                    
+                except Exception as e:
+                    page_analysis = {
+                        "page_number": page_number,
+                        "text_content": page_text,
+                        "has_image": bool(page_image),
+                        "analysis": f"Analysis failed: {str(e)}",
+                        "status": "failed"
+                    }
+                    print(f"❌ Page {page_number} analysis failed: {e}")
+                
+                page_analyses.append(page_analysis)
+            
+            # Step 3: Generate overall document summary
+            print("\n📊 Generating overall document summary...")
+            overall_summary = self.generate_document_summary_from_pages(page_analyses, doc_type)
             
             return {
                 "document_type": doc_type,
                 "file_path": pdf_path,
-                "analysis": response.content,
+                "total_pages": len(pages_data),
+                "successful_analyses": successful_analyses,
+                "page_analyses": page_analyses,
+                "overall_summary": overall_summary,
+                "analysis_type": "per_page_multimodal",
                 "status": "success"
             }
             
         except Exception as e:
             return {
-                "error": f"Analysis failed: {str(e)}",
+                "document_type": doc_type,
+                "file_path": pdf_path,
+                "error": f"Per-page multimodal analysis failed: {str(e)}",
                 "traceback": traceback.format_exc(),
                 "status": "failed"
             }
 
-    # def analyze_pitch_deck_pptx(self, pptx_path: str) -> Dict[str, Any]:
-    #     """Analyze PowerPoint by converting to PDF first using Aspose."""
-    #     temp_pdf_path = None
-        
-    #     try:
-    #         print(f"\n🔄 Processing PowerPoint file: {pptx_path}")
-            
-    #         # Step 1: Convert PPTX to PDF using Aspose
-    #         print("📄 Converting PPTX to PDF...")
-    #         temp_pdf_path = self.convert_pptx_to_pdf(pptx_path)
-            
-    #         # Step 2: Extract text from PDF using fitz
-    #         print("📝 Extracting text from PDF...")
-    #         extracted_text = self.extract_text_from_pdf(temp_pdf_path)
-            
-    #         if extracted_text.startswith("Error"):
-    #             return {
-    #                 "document_type": "pitch_deck_pptx",
-    #                 "file_path": pptx_path,
-    #                 "error": extracted_text,
-    #                 "status": "failed"
-    #             }
-            
-    #         print(f"✅ Extracted {len(extracted_text)} characters of text")
-    #         print(f"📝 Text preview (first 300 chars):\n{extracted_text[:300]}...")
-            
-    #         # Step 3: Analyze with AI
-    #         if len(extracted_text.strip()) < 100:
-    #             return {
-    #                 "document_type": "pitch_deck_pptx",
-    #                 "file_path": pptx_path,
-    #                 "error": f"Insufficient text content extracted ({len(extracted_text)} chars)",
-    #                 "raw_text": extracted_text,
-    #                 "status": "failed"
-    #             }
-            
-    #         prompt = self.create_pdf_extraction_prompt(extracted_text)
-            
-    #         print("🤖 Sending to AI model for analysis...")
-            
-    #         messages = [HumanMessage(content=prompt)]
-    #         response = self.text_model.invoke(messages)
-            
-    #         return {
-    #             "document_type": "pitch_deck_pptx",
-    #             "file_path": pptx_path,
-    #             "extracted_information": response.content,
-    #             "raw_text": extracted_text,
-    #             "conversion_method": "aspose_pptx_to_pdf",
-    #             "status": "success"
-    #         }
-            
-    #     except Exception as e:
-    #         return {
-    #             "document_type": "pitch_deck_pptx",
-    #             "file_path": pptx_path,
-    #             "error": f"PPTX processing failed: {str(e)}",
-    #             "traceback": traceback.format_exc(),
-    #             "status": "failed"
-    #         }
-    
+    def generate_document_summary_from_pages(self, page_analyses: List[Dict], doc_type: str) -> str:
+        """Generate overall document summary from individual page analyses."""
+        try:
+            # Combine all page analyses
+            combined_analysis = ""
+            for page in page_analyses:
+                if page["status"] == "success":
+                    combined_analysis += f"\n=== PAGE {page['page_number']} ANALYSIS ===\n"
+                    combined_analysis += page["analysis"]
+                    combined_analysis += "\n"
+            summary_prompt = """
+    You are a comprehensive data extraction and collation agent. Your task is to compile ALL data points, numbers, text, and visual information from this {doc_type} document into a structured format for downstream analysis agents.
 
+DOCUMENT TYPE: {doc_type}
+
+EXTRACTED PAGE DATA:
+{combined_analysis}
+
+**COMPREHENSIVE DATA COLLATION REQUIREMENTS:**
+
+**1. COMPLETE NUMERICAL DATA EXTRACTION:**
+Extract and organize EVERY number mentioned or shown in charts/graphs:
+- Revenue figures (historical, current, projected) with exact amounts and time periods
+- Growth rates and percentages from all charts and graphs
+- Market size data (TAM, SAM, SOM) with sources and methodology
+- Customer metrics (acquisition numbers, retention rates, churn percentages)
+- Financial ratios (CAC, LTV, burn rate, runway) with exact calculations
+- Team size numbers and hiring projections
+- Funding amounts (raised, seeking, valuation) with round details
+- Timeline data (dates, milestones, deadlines)
+- Performance metrics (KPIs, conversion rates, usage statistics)
+
+**2. COMPLETE TEXTUAL DATA EXTRACTION:**
+Transcribe and organize ALL text content:
+- Company name, legal structure, location, contact information
+- Product/service descriptions and feature lists
+- Target market definitions and customer segments
+- Value propositions and competitive advantages
+- Business model and revenue streams
+- Partnership details and strategic relationships
+- Regulatory or compliance information
+- Technology stack and operational details
+
+**3. VISUAL ELEMENTS DATA EXTRACTION:**
+Extract ALL data from visual elements:
+- Chart types (bar, line, pie, etc.) with all data points
+- Graph axes labels, legends, units, and scales
+- Table contents with all rows and columns
+- Infographic data and statistics
+- Timeline visualizations with events and dates
+- Organizational charts with names and reporting structure
+- Product screenshots with feature callouts
+- Customer logos and testimonial quotes
+
+**4. TEAM AND ORGANIZATION DATA:**
+Complete roster of all people mentioned:
+- Names, titles, and roles
+- Educational backgrounds and institutions
+- Previous work experience and companies
+- Years of experience in relevant fields
+- Advisory board and board members
+- Organizational structure and reporting lines
+
+**5. COMPETITIVE AND MARKET DATA:**
+All market and competition information:
+- Competitor names and positioning
+- Market trends and growth data
+- Customer pain points and solution fit
+- Pricing comparisons and strategies
+- Market share data and penetration rates
+
+**6. OPERATIONAL AND BUSINESS DATA:**
+All business operations information:
+- Revenue models and pricing structures
+- Sales processes and conversion funnels
+- Cost structures and unit economics
+- Partnership agreements and terms
+- Geographic presence and expansion plans
+- Regulatory approvals and compliance status
+
+
+**CRITICAL REQUIREMENTS:**
+- Extract EVERY single number, percentage, and data point
+- Preserve exact wording and figures as presented
+- Note the source (slide number, chart title) for each data point  
+- Include units, currencies, and time periods for all numerical data
+- Distinguish between historical data and projections
+- Capture visual data that text extraction might miss
+- Organize data for easy consumption by downstream analysis agents
+
+**DO NOT:**
+- Provide opinions, analysis, or recommendations
+- Make calculations or derive new metrics
+- Interpret or evaluate the data quality
+- Add subjective assessments
+
+**OUTPUT:** Complete structured data compilation ready for specialized analysis agents to process specific aspects of the investment opportunity.
+"""
+            summary_prompt = summary_prompt.format(doc_type=doc_type, combined_analysis=combined_analysis)
+            
+            messages = [HumanMessage(content=summary_prompt)]
+            response = self.text_model.invoke(messages)
+            
+            return response.content
+            
+        except Exception as e:
+            return f"Summary generation failed: {str(e)}"
+
+    
     def analyze_raw_email(self, raw_email_text: str) -> Dict[str, Any]:
         """Analyze raw email text."""
         try:
@@ -205,61 +332,7 @@ class StartupAnalyzer:
                 "status": "failed"
             }
 
-    # def extract_pptx_text(self, pptx_path: str) -> str:
-    #     """Extract all text from PowerPoint slides with better error handling."""
-    #     try:
-    #         print(f"Attempting to extract text from: {pptx_path}")
-            
-    #         if not os.path.exists(pptx_path):
-    #             return f"Error: File not found at {pptx_path}"
-            
-    #         prs = Presentation(pptx_path)
-    #         all_text = ""
-    #         slide_count = len(prs.slides)
-            
-    #         print(f"Found {slide_count} slides in presentation")
-            
-    #         if slide_count == 0:
-    #             return "Error: No slides found in presentation"
-            
-    #         for i, slide in enumerate(prs.slides):
-    #             slide_text = f"\n--- SLIDE {i + 1} ---\n"
-    #             shape_count = 0
-                
-    #             # Extract text from all shapes
-    #             for shape in slide.shapes:
-    #                 shape_count += 1
-    #                 try:
-    #                     if hasattr(shape, "text") and shape.text.strip():
-    #                         slide_text += f"Shape {shape_count}: {shape.text.strip()}\n"
-    #                     elif hasattr(shape, "text_frame") and shape.text_frame:
-    #                         for paragraph in shape.text_frame.paragraphs:
-    #                             para_text = ""
-    #                             for run in paragraph.runs:
-    #                                 para_text += run.text
-    #                             if para_text.strip():
-    #                                 slide_text += f"Shape {shape_count}: {para_text.strip()}\n"
-    #                 except Exception as shape_error:
-    #                     print(f"Error extracting text from shape {shape_count} on slide {i+1}: {shape_error}")
-    #                     continue
-                
-    #             if slide_text.strip() != f"--- SLIDE {i + 1} ---":
-    #                 all_text += slide_text
-    #             else:
-    #                 all_text += f"\n--- SLIDE {i + 1} ---\n[No readable text found on this slide]\n"
-            
-    #         print(f"Extracted text length: {len(all_text)} characters")
-            
-    #         if len(all_text.strip()) < 50:  # Very little content extracted
-    #             return f"Warning: Only minimal text extracted from presentation. Extracted content:\n{all_text}"
-            
-    #         return all_text
-            
-    #     except Exception as e:
-    #         error_msg = f"Error extracting PPTX text: {str(e)}"
-    #         print(error_msg)
-    #         return error_msg
-# Simplified usage functions
+    
 def analyze_startup_documents(file_paths: List[str]) -> Dict[str, Any]:
     """Analyze multiple startup documents."""
     analyzer = StartupAnalyzer()
@@ -300,7 +373,7 @@ def analyze_raw_call_text(raw_transcript: str) -> Dict[str, Any]:
 if __name__ == "__main__":
     # Example 1: Analyze startup documents
     documents = [
-        "startup_deck.pdf",
+        "8435333355.pdf",
     ]
     
     results = analyze_startup_documents(documents)
@@ -311,7 +384,7 @@ if __name__ == "__main__":
         print(f"{'='*50}")
         
         if analysis.get('status') == 'success':
-            print(analysis['analysis'])
+            print(analysis['overall_summary'])
         else:
             print(f"❌ Error: {analysis.get('error')}")
     
@@ -656,4 +729,3 @@ Sarah: We'll be in touch soon. Great meeting everyone.
     # print("📞 CALL ANALYSIS") 
     # print(f"{'='*50}")
     # print(call_result.get('analysis', call_result.get('error')))
-
