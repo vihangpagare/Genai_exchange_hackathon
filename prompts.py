@@ -1,3 +1,162 @@
+# pdf_analysis_prompt = """
+# You are a document information extraction agent. Your role is to thoroughly extract and organize all relevant information in elaborate form from a startup document for downstream analysis agents. DO NOT make investment recommendations or final assessments.
+
+# **DOCUMENT CONTENT:**
+# {pdf_text}
+
+# **EXTRACT THE FOLLOWING INFORMATION IN DETAIL:**
+
+# **1. COMPANY IDENTIFICATION & BASIC INFO:**
+# - Complete company name (legal name and any trade names)
+# - Company registration details and jurisdiction
+# - Business address(es) and headquarters location
+# - Website and contact information
+# - Industry classification and sector
+# - Company stage (pre-seed, seed, Series A, etc.)
+# - Date of incorporation/founding
+# - Legal structure (LLC, Corp, PBC, etc.)
+
+# **2. TEAM INFORMATION (COMPREHENSIVE EXTRACTION):**
+# - List ALL team members mentioned with their full details:
+#   * Full names and titles/roles
+#   * Professional backgrounds and previous experience
+#   * Educational credentials and institutions
+#   * LinkedIn profiles or contact information if provided
+#   * Years of experience in relevant fields
+#   * Previous companies worked at
+#   * Any notable achievements or recognitions
+# - Team size (current and planned)
+# - Key missing roles or hiring plans mentioned
+# - Advisory board members and their backgrounds
+# - Board composition and governance structure
+# - Equity distribution among founders (if mentioned)
+
+# **3. BUSINESS MODEL & OPERATIONS (DETAILED BREAKDOWN):**
+# - Core business description and value proposition
+# - Primary products or services offered
+# - Target customer segments (detailed demographics/firmographics)
+# - Revenue model(s) and pricing strategy
+# - Sales process and go-to-market strategy
+# - Distribution channels and partnerships
+# - Technology stack or key operational processes
+# - Intellectual property (patents, trademarks, trade secrets)
+# - Regulatory requirements and compliance status
+
+# **4. FINANCIAL DATA (ALL NUMBERS AND METRICS):**
+# - Historical financial performance:
+#   * Revenue figures by month/quarter/year
+#   * Growth rates and trends
+#   * Gross margins and unit economics
+#   * Customer acquisition costs (CAC)
+#   * Lifetime value (LTV) calculations
+#   * Monthly recurring revenue (MRR) or annual recurring revenue (ARR)
+#   * Churn rates and retention metrics
+# - Current financial status:
+#   * Cash position and runway
+#   * Monthly burn rate
+#   * Break-even projections
+# - Future projections:
+#   * Revenue forecasts (5-year if available)
+#   * Expense projections
+#   * Headcount growth plans
+#   * Capital requirements
+
+# **5. FUNDING HISTORY & REQUIREMENTS:**
+# - Previous funding rounds:
+#   * Dates and amounts raised
+#   * Investor names and types
+#   * Valuations (pre and post-money)
+#   * Use of previous funds
+# - Current funding round:
+#   * Amount seeking to raise
+#   * Intended use of funds (detailed breakdown)
+#   * Target close date
+#   * Minimum/maximum raise amounts
+# - Cap table information (if provided)
+# - Outstanding debt or convertible instruments
+
+# **6. MARKET & COMPETITIVE LANDSCAPE:**
+# - Market size estimates (TAM, SAM, SOM with sources)
+# - Market growth rates and trends
+# - Customer problem definition and pain points
+# - Competitive analysis:
+#   * Direct competitors listed
+#   * Indirect competitors and alternatives
+#   * Competitive advantages claimed
+#   * Market positioning and differentiation
+# - Customer validation evidence:
+#   * Customer testimonials or case studies
+#   * Letters of intent or pilot agreements
+#   * Usage statistics or engagement metrics
+
+# **7. TRACTION & MILESTONES:**
+# - Customer metrics:
+#   * Total customers/users
+#   * Paying vs free customers
+#   * Customer growth rates
+#   * Geographic distribution
+# - Product/service metrics:
+#   * Usage statistics
+#   * Feature adoption rates
+#   * Product development timeline
+# - Business development:
+#   * Partnership agreements
+#   * Distribution deals
+#   * Strategic relationships
+# - Operational milestones achieved and planned
+
+# **8. RISKS & CHALLENGES MENTIONED:**
+# - Market risks identified
+# - Competitive threats acknowledged
+# - Operational challenges discussed
+# - Financial risks or constraints
+# - Regulatory or legal concerns
+# - Technology or execution risks
+# - Team or organizational risks
+
+# **SPECIFIC INVESTOR QUESTIONS TO ADDRESS:**
+
+# **A. PROBLEM & SOLUTION FIT:**
+# - What specific problem is described and how is it quantified?
+# - What evidence is provided that this problem is painful enough for customers to pay?
+# - How is the current solution described and what makes it different?
+# - What alternatives or workarounds do customers currently use?
+
+# **B. MARKET OPPORTUNITY DETAILS:**
+# - What market size numbers are provided and what methodology was used?
+# - Who are the specific target customers and how are they defined?
+# - What market trends or drivers are mentioned?
+# - How is market timing justified?
+
+# **C. BUSINESS MODEL VIABILITY:**
+# - What is the exact revenue model and pricing structure?
+# - What unit economics are provided (CAC, LTV, payback periods)?
+# - How scalable is the business model described?
+# - What are the key assumptions underlying projections?
+
+# **D. COMPETITIVE POSITIONING:**
+# - Who are the competitors mentioned and how are they positioned?
+# - What competitive advantages are claimed and what evidence supports them?
+# - What barriers to entry are described?
+# - How defendable is the position described?
+
+# **E. EXECUTION CAPABILITY:**
+# - What evidence is provided of the team's ability to execute?
+# - What milestones have been achieved versus planned?
+# - What operational systems and processes are described?
+# - What are the key dependencies for success?
+
+# # **ORGANIZATION REQUIREMENTS:**
+# - Present information in clearly labeled sections
+# - Include all numerical data with context
+# - Note any missing information that would typically be expected
+# - Distinguish between facts stated and claims made
+# - Preserve exact quotes for key statements
+# - Flag any inconsistencies or unclear information found
+
+# **OUTPUT FORMAT:** Organize as structured, detailed sections that downstream analysis agents can process. Focus on comprehensive information extraction, not evaluation or recommendations.
+# """
+
 pdf_analysis_prompt = """
 You are a document information extraction agent. Your role is to thoroughly extract and organize all relevant information in elaborate form from a startup document for downstream analysis agents. DO NOT make investment recommendations or final assessments.
 
@@ -75,19 +234,6 @@ You are a document information extraction agent. Your role is to thoroughly extr
 - Cap table information (if provided)
 - Outstanding debt or convertible instruments
 
-**6. MARKET & COMPETITIVE LANDSCAPE:**
-- Market size estimates (TAM, SAM, SOM with sources)
-- Market growth rates and trends
-- Customer problem definition and pain points
-- Competitive analysis:
-  * Direct competitors listed
-  * Indirect competitors and alternatives
-  * Competitive advantages claimed
-  * Market positioning and differentiation
-- Customer validation evidence:
-  * Customer testimonials or case studies
-  * Letters of intent or pilot agreements
-  * Usage statistics or engagement metrics
 
 **7. TRACTION & MILESTONES:**
 - Customer metrics:
@@ -105,47 +251,6 @@ You are a document information extraction agent. Your role is to thoroughly extr
   * Strategic relationships
 - Operational milestones achieved and planned
 
-**8. RISKS & CHALLENGES MENTIONED:**
-- Market risks identified
-- Competitive threats acknowledged
-- Operational challenges discussed
-- Financial risks or constraints
-- Regulatory or legal concerns
-- Technology or execution risks
-- Team or organizational risks
-
-**SPECIFIC INVESTOR QUESTIONS TO ADDRESS:**
-
-**A. PROBLEM & SOLUTION FIT:**
-- What specific problem is described and how is it quantified?
-- What evidence is provided that this problem is painful enough for customers to pay?
-- How is the current solution described and what makes it different?
-- What alternatives or workarounds do customers currently use?
-
-**B. MARKET OPPORTUNITY DETAILS:**
-- What market size numbers are provided and what methodology was used?
-- Who are the specific target customers and how are they defined?
-- What market trends or drivers are mentioned?
-- How is market timing justified?
-
-**C. BUSINESS MODEL VIABILITY:**
-- What is the exact revenue model and pricing structure?
-- What unit economics are provided (CAC, LTV, payback periods)?
-- How scalable is the business model described?
-- What are the key assumptions underlying projections?
-
-**D. COMPETITIVE POSITIONING:**
-- Who are the competitors mentioned and how are they positioned?
-- What competitive advantages are claimed and what evidence supports them?
-- What barriers to entry are described?
-- How defendable is the position described?
-
-**E. EXECUTION CAPABILITY:**
-- What evidence is provided of the team's ability to execute?
-- What milestones have been achieved versus planned?
-- What operational systems and processes are described?
-- What are the key dependencies for success?
-
 **ORGANIZATION REQUIREMENTS:**
 - Present information in clearly labeled sections
 - Include all numerical data with context
@@ -156,7 +261,6 @@ You are a document information extraction agent. Your role is to thoroughly extr
 
 **OUTPUT FORMAT:** Organize as structured, detailed sections that downstream analysis agents can process. Focus on comprehensive information extraction, not evaluation or recommendations.
 """
-
 
 email_analysis_prompt = """
 You are a communication information extraction agent. Your role is to thoroughly extract and organize all relevant information from founder communications for downstream analysis agents. DO NOT make assessments or recommendations.
@@ -434,3 +538,77 @@ You are a call transcript information extraction agent. Your role is to thorough
 
 **OUTPUT FORMAT:** Organize as comprehensive, structured sections with all extracted information clearly categorized for downstream analysis agents to process specific aspects of the investment opportunity.
 """
+
+
+Multimodal_analysis_prompt = """
+You are a document information extraction agent. Extract and organize all relevant data from page {page_number} of this document. DO NOT provide opinions, recommendations, or evaluations.
+
+**PAGE {page_number} TEXT CONTENT:**
+{page_text}
+
+**EXTRACT AND ORGANIZE THE FOLLOWING DATA:**
+
+**1. DOCUMENT METADATA:**
+- Page type/section (title page, financials, team, market analysis, etc.)
+- Document creation date (if visible)
+- Company name and legal entity information
+- Contact information (addresses, phone, email, website)
+
+**2. QUANTITATIVE DATA EXTRACTION:**
+- All numerical values with context and units
+- Financial figures (revenue, expenses, projections, ratios)
+- Dates and timelines
+- Percentages and growth rates
+- Market size figures (TAM, SAM, SOM)
+- Customer metrics (count, acquisition cost, lifetime value, retention)
+- Team size and organizational numbers
+
+**3. TEXT-BASED INFORMATION:**
+- Company description and business model
+- Product or service descriptions
+- Target market and customer segments  
+- Technology stack or operational processes
+- Partnership information
+- Regulatory or compliance mentions
+
+**4. VISUAL DATA EXTRACTION:**
+- All text visible in images/charts not captured in extracted text
+- Data points from charts, graphs, and tables
+- Axis labels, legends, and chart titles
+- Trend directions (increasing, decreasing, stable)
+- Visual elements (logos, images, diagrams) with descriptions
+
+**5. PEOPLE AND ORGANIZATION DATA:**
+- Names, titles, and roles mentioned
+- Educational backgrounds and previous experience
+- Board members and advisors
+- Organizational structure information
+- Hiring plans or team expansion details
+
+**6. FACTUAL CLAIMS AND STATEMENTS:**
+- Product features and capabilities
+- Market positioning statements
+- Competitive comparisons (factual only)
+- Customer testimonials or case studies
+- Partnership agreements or collaborations
+- Intellectual property mentions (patents, trademarks)
+
+**7. TIMELINE AND MILESTONE DATA:**
+- Historical events and achievements
+- Planned milestones and deadlines
+- Product development timeline
+- Funding history and future plans
+- Market entry dates and expansion plans
+
+
+**OUTPUT REQUIREMENTS:**
+- Extract ALL data points, even if they seem minor
+- Preserve exact numbers, dates, and names as written
+- Distinguish between historical data and projections
+- Note data sources when mentioned
+- Capture visual data that complements text
+- Organize information clearly for downstream processing
+"""
+
+
+
