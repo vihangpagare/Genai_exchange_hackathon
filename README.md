@@ -32,27 +32,36 @@ A comprehensive AI-powered platform for analyzing startup documents, emails, and
 ## 🏗️ Project Structure
 
 ```
-├── 📁 Backend
+├── 📁 backend/                 # Python backend services
+│   ├── backend.py              # FastAPI main server
 │   ├── document_ingestor.py    # Core document analysis logic
 │   ├── factcheck_agent.py      # AI fact-checking agent with web search
 │   ├── main.py                 # Fact-checking agent runner
 │   ├── prompts.py              # AI prompts for different document types
-│   ├── backend.py              # FastAPI backend server
-│   └── requirements.txt        # Python dependencies
-├── 📁 Frontend
+│   ├── requirements.txt        # Python dependencies
+│   └── README.md              # Backend documentation
+├── 📁 frontend/                # React frontend application
+│   ├── public/
+│   │   └── index.html          # Main HTML file
 │   ├── src/
-│   │   ├── App.js             # Main application component
-│   │   ├── components/        # React components
-│   │   │   ├── FileUpload.js  # Drag-and-drop file upload
-│   │   │   ├── TextInput.js   # Text input for emails/calls
-│   │   │   ├── FactCheckInput.js # Fact-checking interface
-│   │   │   └── AnalysisResults.js # Results display
-│   │   ├── services/          # API service layer
-│   │   └── index.css          # Styling and animations
-│   ├── public/                # Static assets
-│   └── package.json           # React dependencies
+│   │   ├── components/         # React components
+│   │   │   ├── AnalysisResults.js    # Results display
+│   │   │   ├── FactCheckInput.js     # Fact-checking interface
+│   │   │   ├── FileUpload.js         # Drag-and-drop upload
+│   │   │   ├── TextInput.js          # Text input for emails/calls
+│   │   │   └── ThemeToggle.js        # Theme switcher
+│   │   ├── contexts/
+│   │   │   └── ThemeContext.js       # Theme management
+│   │   ├── services/
+│   │   │   └── api.js                # API service layer
+│   │   ├── App.js                    # Main application
+│   │   ├── index.js                  # React entry point
+│   │   └── index.css                 # Global styles
+│   ├── package.json                  # Frontend dependencies
+│   └── README.md                     # Frontend documentation
 ├── .gitignore                 # Git ignore rules
 ├── env.example               # Environment variables template
+├── package.json              # Monorepo configuration
 └── README.md                 # This file
 ```
 
@@ -73,18 +82,20 @@ cd Genai_exchange_hackathon
 
 #### Install Python Dependencies
 ```bash
+cd backend
 pip install -r requirements.txt
 ```
 
 #### Configure API Key
 1. Get your Google API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Update the API key in `document_ingestor.py`:
+2. Update the API key in `backend/document_ingestor.py`:
    ```python
    os.environ["GOOGLE_API_KEY"] = "your-actual-google-api-key"
    ```
 
 #### Start Backend Server
 ```bash
+cd backend
 python backend.py
 ```
 The API will be available at `http://localhost:8000`
@@ -93,14 +104,36 @@ The API will be available at `http://localhost:8000`
 
 #### Install Node.js Dependencies
 ```bash
+cd frontend
 npm install
 ```
 
 #### Start React Development Server
 ```bash
+cd frontend
 npm start
 ```
 The frontend will be available at `http://localhost:3000`
+
+### 4. Development with Both Services
+
+#### Option 1: Run Both Services Separately
+```bash
+# Terminal 1: Start backend
+cd backend && python backend.py
+
+# Terminal 2: Start frontend
+cd frontend && npm start
+```
+
+#### Option 2: Use Monorepo Scripts (Recommended)
+```bash
+# Install all dependencies
+npm run install:all
+
+# Start both services concurrently
+npm run dev
+```
 
 ## 📖 Usage Guide
 
@@ -239,11 +272,15 @@ REACT_APP_API_URL=http://localhost:8000
 
 ### Running in Development Mode
 ```bash
+# Option 1: Use monorepo scripts (recommended)
+npm run dev
+
+# Option 2: Run services separately
 # Terminal 1: Start backend
-python backend.py
+cd backend && python backend.py
 
 # Terminal 2: Start frontend
-npm start
+cd frontend && npm start
 ```
 
 Both servers will run with hot reload for development.
@@ -253,7 +290,7 @@ Both servers will run with hot reload for development.
 # Build React app
 npm run build
 
-# The built files will be in the 'build' directory
+# The built files will be in the 'frontend/build' directory
 # Serve with any static file server
 ```
 

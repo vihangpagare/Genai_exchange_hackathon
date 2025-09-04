@@ -1,32 +1,42 @@
 {
-  "name": "startup-analyzer-frontend",
+  "name": "startup-document-analyzer",
   "version": "1.0.0",
-  "description": "Frontend for startup document analyzer",
-  "main": "index.js",
+  "description": "AI-powered platform for analyzing startup documents, emails, and call transcripts with advanced fact-checking capabilities",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\"",
+    "backend:dev": "cd backend && python backend.py",
+    "frontend:dev": "cd frontend && npm start",
+    "frontend:build": "cd frontend && npm run build",
+    "frontend:install": "cd frontend && npm install",
+    "backend:install": "cd backend && pip install -r requirements.txt",
+    "install:all": "npm run frontend:install && npm run backend:install",
+    "start": "npm run dev",
+    "build": "npm run frontend:build"
   },
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-scripts": "5.0.1",
-    "axios": "^1.6.0",
-    "react-dropzone": "^14.2.3",
-    "lucide-react": "^0.294.0"
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
-  }
+  "keywords": [
+    "startup",
+    "document-analysis",
+    "ai",
+    "fact-checking",
+    "gemini",
+    "react",
+    "fastapi"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/startup-document-analyzer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/startup-document-analyzer/issues"
+  },
+  "homepage": "https://github.com/yourusername/startup-document-analyzer#readme"
 }
