@@ -3,7 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import tempfile
 import os
+import asyncio
 from document_ingestor import StartupAnalyzer
+from factcheck_agent import factcheck_agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.adk.artifacts import InMemoryArtifactService
+from google.genai import types
 
 app = FastAPI(title="Startup Document Analyzer API", version="1.0.0")
 
@@ -19,9 +25,17 @@ app.add_middleware(
 # Initialize analyzer
 analyzer = StartupAnalyzer()
 
+# Initialize fact-checking services
+session_service = InMemorySessionService()
+artifact_service = InMemoryArtifactService()
+
 class TextAnalysisRequest(BaseModel):
     email_text: str = None
     call_text: str = None
+
+class FactCheckRequest(BaseModel):
+    content: str
+    analysis_type: str = "general"  # general, document, email, call
 
 @app.get("/health")
 async def health_check():
@@ -99,6 +113,89 @@ async def analyze_call(request: TextAnalysisRequest):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Call analysis failed: {str(e)}")
+
+# Fact-checking helper functions
+async def call_agent_async(runner, user_id, session_id, query):
+    """Call the fact-checking agent asynchronously"""
+    content = types.Content(role="user", parts=[types.Part(text=query)])
+    
+    last_response = None
+    try:
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=content,
+        ):
+            response = await _process_event(event)
+            if response:
+                last_response = response
+                
+    except Exception as exc:
+        error_msg = f"Error during fact-checking: {exc}"
+        return error_msg
+    
+    return last_response or "No response received from fact-checking agent"
+
+async def _process_event(event):
+    """Extract text parts from an ADK streaming event"""
+    final_response = None
+    if event.content and event.content.parts:
+        for part in event.content.parts:
+            text = getattr(part, "text", "").strip()
+            if text:
+                final_response = text
+    return final_response
+
+@app.post("/analyze/factcheck")
+async def fact_check_content(request: FactCheckRequest):
+    """
+    Fact-check content using the AI agent with web search capabilities
+    """
+    try:
+        if not request.content:
+            raise HTTPException(status_code=400, detail="Content is required for fact-checking")
+        
+        # Create a new session for this fact-checking request
+        session = await session_service.create_session(
+            app_name="FactCheck-Studio",
+            user_id="Investment_Analyst",
+            state={}
+        )
+        
+        # Create runner
+        runner = Runner(
+            agent=factcheck_agent,
+            app_name="FactCheck-Studio",
+            session_service=session_service,
+            artifact_service=artifact_service
+        )
+        
+        # Prepare the fact-checking query
+        factcheck_query = f"""
+        Please fact-check the following {request.analysis_type} content:
+        
+        {request.content}
+        
+        Provide a comprehensive analysis including data normalization, internal consistency checks, and external verification where possible.
+        """
+        
+        # Call the fact-checking agent
+        result = await call_agent_async(
+            runner=runner,
+            user_id="Investment_Analyst",
+            session_id=session.id,
+            query=factcheck_query
+        )
+        
+        return {
+            "document_type": f"factcheck_{request.analysis_type}",
+            "analysis": result,
+            "status": "success",
+            "session_id": session.id
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fact-checking failed: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

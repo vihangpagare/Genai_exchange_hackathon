@@ -1,32 +1,23 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, FileText, Users, DollarSign, TrendingUp, Target, AlertTriangle, Sparkles, Brain, Zap } from 'lucide-react';
+import React from 'react';
+import { FileText, Users, DollarSign, TrendingUp, Target, AlertTriangle, Sparkles, Brain, Zap, Briefcase, Mail, Phone, Shield } from 'lucide-react';
 
 const AnalysisResults = ({ results }) => {
-  const [expandedSections, setExpandedSections] = useState({});
-
-  const toggleSection = (sectionId) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [sectionId]: !prev[sectionId]
-    }));
-  };
-
   const formatAnalysisContent = (content) => {
     if (typeof content !== 'string') return content;
     
     // Split content into sections based on ** markers
-    const sections = content.split(/(\*\*[^*]+\*\*)/g);
+    const sections = content.split(/(\*\*[^**]+\*\*)/g);
     
     return sections.map((section, index) => {
       if (section.startsWith('**') && section.endsWith('**')) {
         return (
-          <h4 key={index} className="font-semibold text-gray-900 mt-4 mb-2">
+          <h4 key={index} className="font-semibold text-gray-900 mt-4 mb-2 text-lg">
             {section.slice(2, -2)}
           </h4>
         );
       }
       return (
-        <p key={index} className="text-gray-700 mb-2 whitespace-pre-wrap">
+        <p key={index} className="text-gray-700 mb-2 whitespace-pre-wrap leading-relaxed">
           {section}
         </p>
       );
@@ -50,15 +41,15 @@ const AnalysisResults = ({ results }) => {
     return (
       <div className="space-y-8">
         {/* Document Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-2xl border border-blue-200">
             <div className="flex items-center gap-3 text-blue-700 mb-3">
               <div className="p-2 bg-blue-200 rounded-lg">
-                <FileText className="w-5 h-5" />
+                <Briefcase className="w-5 h-5" />
               </div>
-              <span className="font-semibold">Document Type</span>
+              <span className="font-semibold text-sm md:text-base">Document Type</span>
             </div>
-            <p className="text-blue-900 text-lg font-medium">{results.document_type || 'PDF Document'}</p>
+            <p className="text-blue-900 text-lg md:text-xl font-medium">{results.document_type || 'PDF Document'}</p>
           </div>
           
           {results.total_pages && (
@@ -67,9 +58,9 @@ const AnalysisResults = ({ results }) => {
                 <div className="p-2 bg-green-200 rounded-lg">
                   <FileText className="w-5 h-5" />
                 </div>
-                <span className="font-semibold">Total Pages</span>
+                <span className="font-semibold text-sm md:text-base">Total Pages</span>
               </div>
-              <p className="text-green-900 text-lg font-medium">{results.total_pages}</p>
+              <p className="text-green-900 text-lg md:text-xl font-medium">{results.total_pages}</p>
             </div>
           )}
           
@@ -79,9 +70,9 @@ const AnalysisResults = ({ results }) => {
                 <div className="p-2 bg-purple-200 rounded-lg">
                   <TrendingUp className="w-5 h-5" />
                 </div>
-                <span className="font-semibold">Pages Analyzed</span>
+                <span className="font-semibold text-sm md:text-base">Pages Analyzed</span>
               </div>
-              <p className="text-purple-900 text-lg font-medium">{results.successful_analyses}</p>
+              <p className="text-purple-900 text-lg md:text-xl font-medium">{results.successful_analyses}</p>
             </div>
           )}
         </div>
@@ -147,19 +138,29 @@ const AnalysisResults = ({ results }) => {
   };
 
   const renderEmailResults = () => (
-    <div className="space-y-4">
-      <div className="bg-blue-50 p-4 rounded-lg">
-        <div className="flex items-center gap-2 text-blue-700">
-          <FileText className="w-5 h-5" />
-          <span className="font-medium">Email Analysis</span>
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-2xl border border-purple-200">
+        <div className="flex items-center gap-3 text-purple-700">
+          <div className="p-2 bg-purple-200 rounded-lg">
+            <Mail className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="font-semibold text-lg">Email Analysis</span>
+            <p className="text-purple-600 text-sm">Communication analysis completed</p>
+          </div>
         </div>
-        <p className="text-blue-900 mt-1">Communication analysis completed</p>
       </div>
       
       {results.analysis && (
         <div className="card">
-          <h3 className="text-lg font-semibold mb-4">Analysis Results</h3>
-          <div className="prose max-w-none">
+          <h3 className="text-xl font-bold mb-6 flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg">
+              <Target className="w-6 h-6 text-white" />
+            </div>
+            Analysis Results
+            <Sparkles className="w-5 h-5 text-pink-500 ml-auto" />
+          </h3>
+          <div className="prose max-w-none text-gray-700 leading-relaxed">
             {formatAnalysisContent(results.analysis)}
           </div>
         </div>
@@ -168,19 +169,60 @@ const AnalysisResults = ({ results }) => {
   );
 
   const renderCallResults = () => (
-    <div className="space-y-4">
-      <div className="bg-green-50 p-4 rounded-lg">
-        <div className="flex items-center gap-2 text-green-700">
-          <FileText className="w-5 h-5" />
-          <span className="font-medium">Call Analysis</span>
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-indigo-50 to-blue-50 p-6 rounded-2xl border border-indigo-200">
+        <div className="flex items-center gap-3 text-indigo-700">
+          <div className="p-2 bg-indigo-200 rounded-lg">
+            <Phone className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="font-semibold text-lg">Call Analysis</span>
+            <p className="text-indigo-600 text-sm">Transcript analysis completed</p>
+          </div>
         </div>
-        <p className="text-green-900 mt-1">Transcript analysis completed</p>
       </div>
       
       {results.analysis && (
         <div className="card">
-          <h3 className="text-lg font-semibold mb-4">Analysis Results</h3>
-          <div className="prose max-w-none">
+          <h3 className="text-xl font-bold mb-6 flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg">
+              <Target className="w-6 h-6 text-white" />
+            </div>
+            Analysis Results
+            <Sparkles className="w-5 h-5 text-blue-500 ml-auto" />
+          </h3>
+          <div className="prose max-w-none text-gray-700 leading-relaxed">
+            {formatAnalysisContent(results.analysis)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderFactCheckResults = () => (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-6 rounded-2xl border border-emerald-200">
+        <div className="flex items-center gap-3 text-emerald-700">
+          <div className="p-2 bg-emerald-200 rounded-lg">
+            <Shield className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="font-semibold text-lg">Fact-Check Analysis</span>
+            <p className="text-emerald-600 text-sm">Verification completed with web search</p>
+          </div>
+        </div>
+      </div>
+      
+      {results.analysis && (
+        <div className="card">
+          <h3 className="text-xl font-bold mb-6 flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg">
+              <Sparkles className="w-6 h-6 text-white" />
+            </div>
+            Fact-Check Results
+            <Search className="w-5 h-5 text-teal-500 ml-auto" />
+          </h3>
+          <div className="prose max-w-none text-gray-700 leading-relaxed">
             {formatAnalysisContent(results.analysis)}
           </div>
         </div>
@@ -193,6 +235,8 @@ const AnalysisResults = ({ results }) => {
       return renderEmailResults();
     } else if (results.document_type === 'call_transcript') {
       return renderCallResults();
+    } else if (results.document_type && results.document_type.startsWith('factcheck_')) {
+      return renderFactCheckResults();
     } else {
       return renderDocumentResults();
     }
@@ -201,7 +245,7 @@ const AnalysisResults = ({ results }) => {
   return (
     <div className="space-y-6">
       <div className="card">
-        <h2 className="text-xl font-semibold mb-4">Analysis Results</h2>
+        <h2 className="text-xl md:text-2xl font-semibold mb-4 text-gray-900">Analysis Results</h2>
         {getResultsContent()}
       </div>
     </div>

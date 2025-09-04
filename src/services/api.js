@@ -82,6 +82,19 @@ export const analyzeCall = async (callText) => {
   }
 };
 
+// Fact-checking API
+export const factCheckContent = async (content, analysisType = 'general') => {
+  try {
+    const response = await api.post('/analyze/factcheck', {
+      content: content,
+      analysis_type: analysisType
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(`Fact-checking failed: ${error.message}`);
+  }
+};
+
 // Health check API
 export const healthCheck = async () => {
   try {
