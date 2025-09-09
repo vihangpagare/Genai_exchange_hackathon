@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Users, DollarSign, TrendingUp, Target, AlertTriangle, Sparkles, Brain, Zap, Briefcase, Mail, Phone, Shield } from 'lucide-react';
+import { FileText, Users, DollarSign, TrendingUp, Target, AlertTriangle, Sparkles, Brain, Zap, Briefcase, Mail, Phone, Shield, PieChart, Globe, BarChart2 } from 'lucide-react';
 
 const AnalysisResults = ({ results }) => {
   const formatAnalysisContent = (content) => {
@@ -230,6 +230,134 @@ const AnalysisResults = ({ results }) => {
     </div>
   );
 
+  const renderBusinessModelResults = () => (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-orange-50 to-red-50 p-6 rounded-2xl border border-orange-200">
+        <div className="flex items-center gap-3 text-orange-700">
+          <div className="p-2 bg-orange-200 rounded-lg">
+            <PieChart className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="font-semibold text-lg">Business Model Analysis</span>
+            <p className="text-orange-600 text-sm">Revenue streams, pricing strategy, and monetization analysis completed</p>
+          </div>
+        </div>
+      </div>
+      
+      {results.analysis && (
+        <div className="card">
+          <h3 className="text-xl font-bold mb-6 flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg">
+              <PieChart className="w-6 h-6 text-white" />
+            </div>
+            Business Model Analysis Results
+            <Sparkles className="w-5 h-5 text-red-500 ml-auto" />
+          </h3>
+          <div className="prose max-w-none text-gray-700 leading-relaxed">
+            {formatAnalysisContent(results.analysis)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderMarketIntelligenceResults = () => (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-2xl border border-green-200">
+        <div className="flex items-center gap-3 text-green-700">
+          <div className="p-2 bg-green-200 rounded-lg">
+            <TrendingUp className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="font-semibold text-lg">Market Intelligence Analysis</span>
+            <p className="text-green-600 text-sm">Competitor analysis, market research, and opportunity assessment completed</p>
+          </div>
+        </div>
+      </div>
+      
+      {results.analysis && (
+        <div className="card">
+          <h3 className="text-xl font-bold mb-6 flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg">
+              <TrendingUp className="w-6 h-6 text-white" />
+            </div>
+            Market Intelligence Results
+            <Globe className="w-5 h-5 text-emerald-500 ml-auto" />
+          </h3>
+          <div className="prose max-w-none text-gray-700 leading-relaxed">
+            {formatAnalysisContent(results.analysis)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderRiskAssessmentResults = () => (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-red-50 to-pink-50 p-6 rounded-2xl border border-red-200">
+        <div className="flex items-center gap-3 text-red-700">
+          <div className="p-2 bg-red-200 rounded-lg">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="font-semibold text-lg">Risk Assessment Analysis</span>
+            <p className="text-red-600 text-sm">Comprehensive risk evaluation including market, execution, financial, and regulatory risks</p>
+          </div>
+        </div>
+      </div>
+      
+      {results.analysis && (
+        <div className="card">
+          <h3 className="text-xl font-bold mb-6 flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-red-500 to-pink-600 rounded-lg">
+              <AlertTriangle className="w-6 h-6 text-white" />
+            </div>
+            Risk Assessment Results
+            <BarChart2 className="w-5 h-5 text-pink-500 ml-auto" />
+          </h3>
+          <div className="prose max-w-none text-gray-700 leading-relaxed">
+            {formatAnalysisContent(results.analysis)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderComprehensiveResults = () => (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-violet-50 to-purple-50 p-6 rounded-2xl border border-violet-200">
+        <div className="flex items-center gap-3 text-violet-700">
+          <div className="p-2 bg-violet-200 rounded-lg">
+            <Target className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="font-semibold text-lg">Comprehensive Analysis</span>
+            <p className="text-violet-600 text-sm">Complete startup evaluation with all analysis types</p>
+          </div>
+        </div>
+      </div>
+      
+      {results.analyses && (
+        <div className="space-y-6">
+          {Object.entries(results.analyses).map(([analysisType, analysisData]) => (
+            <div key={analysisType} className="card">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg">
+                  <Target className="w-6 h-6 text-white" />
+                </div>
+                {analysisType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} Analysis
+                <Sparkles className="w-5 h-5 text-purple-500 ml-auto" />
+              </h3>
+              <div className="prose max-w-none text-gray-700 leading-relaxed">
+                {formatAnalysisContent(analysisData)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   const getResultsContent = () => {
     if (results.document_type === 'email') {
       return renderEmailResults();
@@ -237,6 +365,14 @@ const AnalysisResults = ({ results }) => {
       return renderCallResults();
     } else if (results.document_type && results.document_type.startsWith('factcheck_')) {
       return renderFactCheckResults();
+    } else if (results.document_type === 'business_model_analysis') {
+      return renderBusinessModelResults();
+    } else if (results.document_type === 'market_intelligence_analysis') {
+      return renderMarketIntelligenceResults();
+    } else if (results.document_type === 'risk_assessment_analysis') {
+      return renderRiskAssessmentResults();
+    } else if (results.document_type === 'comprehensive_analysis') {
+      return renderComprehensiveResults();
     } else {
       return renderDocumentResults();
     }

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, FileText, Mail, Phone, Loader2, CheckCircle, AlertCircle, Sparkles, Brain, Zap, Search, Shield, BarChart2, Briefcase } from 'lucide-react';
+import { Upload, FileText, Mail, Phone, Loader2, CheckCircle, AlertCircle, Sparkles, Brain, Zap, Search, Shield, BarChart2, Briefcase, TrendingUp, Target, AlertTriangle, PieChart, Users, Globe, DollarSign } from 'lucide-react';
 import FileUpload from './components/FileUpload';
 import AnalysisResults from './components/AnalysisResults';
 import TextInput from './components/TextInput';
 import FactCheckInput from './components/FactCheckInput';
 import ThemeToggle from './components/ThemeToggle';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { analyzeDocument, analyzeEmail, analyzeCall, factCheckContent } from './services/api';
+import { analyzeDocument, analyzeEmail, analyzeCall, factCheckContent, analyzeBusinessModel, analyzeMarketIntelligence, analyzeRiskAssessment, comprehensiveAnalysis } from './services/api';
+// import { app } from '../providers/firebase';
 
 function App() {
   const [activeTab, setActiveTab] = useState('document');
@@ -82,11 +83,83 @@ function App() {
     }
   };
 
+  const handleBusinessModelAnalysis = async (content) => {
+    setIsLoading(true);
+    setError(null);
+    setResults(null);
+    setAnnouncement('Starting business model analysis...');
+
+    try {
+      const response = await analyzeBusinessModel(content);
+      setResults(response);
+      setAnnouncement('Business model analysis completed successfully');
+    } catch (err) {
+      setError(err.message || 'Failed to analyze business model');
+      setAnnouncement('Business model analysis failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMarketIntelligenceAnalysis = async (content) => {
+    setIsLoading(true);
+    setError(null);
+    setResults(null);
+    setAnnouncement('Starting market intelligence analysis...');
+
+    try {
+      const response = await analyzeMarketIntelligence(content);
+      setResults(response);
+      setAnnouncement('Market intelligence analysis completed successfully');
+    } catch (err) {
+      setError(err.message || 'Failed to analyze market intelligence');
+      setAnnouncement('Market intelligence analysis failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRiskAssessmentAnalysis = async (content) => {
+    setIsLoading(true);
+    setError(null);
+    setResults(null);
+    setAnnouncement('Starting risk assessment analysis...');
+
+    try {
+      const response = await analyzeRiskAssessment(content);
+      setResults(response);
+      setAnnouncement('Risk assessment analysis completed successfully');
+    } catch (err) {
+      setError(err.message || 'Failed to analyze risk assessment');
+      setAnnouncement('Risk assessment analysis failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleComprehensiveAnalysis = async (content, analysisType, options = {}) => {
+    setIsLoading(true);
+    setError(null);
+    setResults(null);
+    setAnnouncement('Starting comprehensive analysis...');
+
+    try {
+      const response = await comprehensiveAnalysis(content, analysisType, options);
+      setResults(response);
+      setAnnouncement('Comprehensive analysis completed successfully');
+    } catch (err) {
+      setError(err.message || 'Failed to perform comprehensive analysis');
+      setAnnouncement('Comprehensive analysis failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Keyboard navigation for tabs
   const handleKeyDown = (event) => {
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       event.preventDefault();
-      const tabIds = ['document', 'email', 'call', 'factcheck'];
+      const tabIds = ['document', 'email', 'call', 'factcheck', 'business-model', 'market-intelligence', 'risk-assessment', 'comprehensive'];
       const currentIndex = tabIds.indexOf(activeTab);
       let nextIndex;
       
@@ -111,7 +184,11 @@ function App() {
     { id: 'document', label: 'Document Analysis', icon: FileText, color: 'from-blue-500 to-purple-600' },
     { id: 'email', label: 'Email Analysis', icon: Mail, color: 'from-purple-500 to-pink-600' },
     { id: 'call', label: 'Call Analysis', icon: Phone, color: 'from-indigo-500 to-blue-600' },
-    { id: 'factcheck', label: 'Fact Check', icon: Shield, color: 'from-emerald-500 to-teal-600' }
+    { id: 'factcheck', label: 'Fact Check', icon: Shield, color: 'from-emerald-500 to-teal-600' },
+    { id: 'business-model', label: 'Business Model', icon: PieChart, color: 'from-orange-500 to-red-600' },
+    { id: 'market-intelligence', label: 'Market Intel', icon: TrendingUp, color: 'from-green-500 to-emerald-600' },
+    { id: 'risk-assessment', label: 'Risk Assessment', icon: AlertTriangle, color: 'from-red-500 to-pink-600' },
+    { id: 'comprehensive', label: 'Comprehensive', icon: Target, color: 'from-violet-500 to-purple-600' }
   ];
 
   return (
@@ -140,10 +217,10 @@ function App() {
               </div>
               <div className="flex-1">
                 <h1 className="text-3xl md:text-4xl font-bold gradient-text mb-1">
-                  Startup Document Analyzer
+                  AI-Powered Startup Investment Analysis Platform
                 </h1>
                 <p className="text-white/80 text-base md:text-xl">
-                  AI-powered analysis of documents, emails, and call transcripts
+                  Comprehensive analysis of startups with business model, market intelligence, and risk assessment
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -161,7 +238,7 @@ function App() {
           {/* Tab Navigation */}
           <div className="card mb-10">
             <div 
-              className="grid grid-cols-2 md:grid-cols-4 border-b border-gray-200/50"
+              className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 border-b border-gray-200/50"
               role="tablist"
               aria-label="Analysis type selection"
             >
@@ -350,6 +427,152 @@ function App() {
                     </div>
                     
                     <FactCheckInput onFactCheck={handleFactCheck} />
+                  </div>
+                </div>
+              )}
+
+              {/* Business Model Analysis Tab */}
+              {activeTab === 'business-model' && (
+                <div 
+                  role="tabpanel"
+                  id="tabpanel-business-model"
+                  aria-labelledby="tab-business-model"
+                  tabIndex={0}
+                >
+                  <div className="flex items-center gap-4 mb-6 md:mb-8">
+                    <div className="p-4 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl shadow-lg">
+                      <PieChart className="w-6 h-6 md:w-8 md:h-8 text-white" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
+                        Business Model Analysis
+                      </h2>
+                      <p className="text-gray-600 text-sm md:text-lg">
+                        Analyze revenue streams, pricing strategy, and monetization pipeline for comprehensive business model evaluation.
+                      </p>
+                    </div>
+                  </div>
+                  <TextInput
+                    onAnalyze={handleBusinessModelAnalysis}
+                    placeholder="Paste startup content for business model analysis..."
+                    buttonText="Analyze Business Model"
+                  />
+                </div>
+              )}
+
+              {/* Market Intelligence Analysis Tab */}
+              {activeTab === 'market-intelligence' && (
+                <div 
+                  role="tabpanel"
+                  id="tabpanel-market-intelligence"
+                  aria-labelledby="tab-market-intelligence"
+                  tabIndex={0}
+                >
+                  <div className="flex items-center gap-4 mb-6 md:mb-8">
+                    <div className="p-4 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl shadow-lg">
+                      <TrendingUp className="w-6 h-6 md:w-8 md:h-8 text-white" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
+                        Market Intelligence Analysis
+                      </h2>
+                      <p className="text-gray-600 text-sm md:text-lg">
+                        Comprehensive market research including competitor analysis, traction assessment, and market opportunity evaluation.
+                      </p>
+                    </div>
+                  </div>
+                  <TextInput
+                    onAnalyze={handleMarketIntelligenceAnalysis}
+                    placeholder="Paste startup content for market intelligence analysis..."
+                    buttonText="Analyze Market Intelligence"
+                  />
+                </div>
+              )}
+
+              {/* Risk Assessment Analysis Tab */}
+              {activeTab === 'risk-assessment' && (
+                <div 
+                  role="tabpanel"
+                  id="tabpanel-risk-assessment"
+                  aria-labelledby="tab-risk-assessment"
+                  tabIndex={0}
+                >
+                  <div className="flex items-center gap-4 mb-6 md:mb-8">
+                    <div className="p-4 bg-gradient-to-br from-red-500 to-pink-600 rounded-2xl shadow-lg">
+                      <AlertTriangle className="w-6 h-6 md:w-8 md:h-8 text-white" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
+                        Risk Assessment Analysis
+                      </h2>
+                      <p className="text-gray-600 text-sm md:text-lg">
+                        Comprehensive risk evaluation including market risks, execution risks, financial risks, and regulatory risks.
+                      </p>
+                    </div>
+                  </div>
+                  <TextInput
+                    onAnalyze={handleRiskAssessmentAnalysis}
+                    placeholder="Paste startup content for risk assessment analysis..."
+                    buttonText="Analyze Risk Assessment"
+                  />
+                </div>
+              )}
+
+              {/* Comprehensive Analysis Tab */}
+              {activeTab === 'comprehensive' && (
+                <div 
+                  role="tabpanel"
+                  id="tabpanel-comprehensive"
+                  aria-labelledby="tab-comprehensive"
+                  tabIndex={0}
+                >
+                  <div className="flex items-center gap-4 mb-6 md:mb-8">
+                    <div className="p-4 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg">
+                      <Target className="w-6 h-6 md:w-8 md:h-8 text-white" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
+                        Comprehensive Analysis
+                      </h2>
+                      <p className="text-gray-600 text-sm md:text-lg">
+                        Complete startup evaluation combining all analysis types for comprehensive investment insights.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    <div className="bg-gradient-to-r from-violet-50 to-purple-50 p-6 rounded-2xl border border-violet-200">
+                      <div className="flex items-center gap-3 mb-4">
+                        <Target className="w-5 h-5 text-violet-600" aria-hidden="true" />
+                        <h3 className="text-lg font-semibold text-violet-800">
+                          Comprehensive Analysis Capabilities
+                        </h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-violet-700">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-violet-500" aria-hidden="true" />
+                          <span>Business Model Analysis</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-violet-500" aria-hidden="true" />
+                          <span>Market Intelligence</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-violet-500" aria-hidden="true" />
+                          <span>Risk Assessment</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-violet-500" aria-hidden="true" />
+                          <span>Fact Checking</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <TextInput
+                      onAnalyze={(content) => handleComprehensiveAnalysis(content, 'document')}
+                      placeholder="Paste startup content for comprehensive analysis..."
+                      buttonText="Run Comprehensive Analysis"
+                    />
                   </div>
                 </div>
               )}

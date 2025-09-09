@@ -1,6 +1,6 @@
-# 🚀 Startup Document Analyzer
+# 🚀 AI-Powered Startup Investment Analysis Platform
 
-A comprehensive AI-powered platform for analyzing startup documents, emails, and call transcripts using Google's Gemini AI with advanced fact-checking capabilities.
+A comprehensive AI-powered platform for analyzing startup documents, emails, and call transcripts using Google's Gemini AI with advanced business model analysis, market intelligence, risk assessment, and fact-checking capabilities.
 
 ## ✨ Features
 
@@ -29,6 +29,29 @@ A comprehensive AI-powered platform for analyzing startup documents, emails, and
 - **Mathematical Verification**: Validate calculations and ratios
 - **Confidence Scoring**: Provide reliability assessments
 
+### 💼 **Business Model Analysis**
+- **Revenue Stream Identification**: Analyze all revenue sources and models
+- **Pricing Strategy Analysis**: Evaluate pricing tiers, customer segmentation, and value proposition
+- **Monetization Pipeline**: Map customer acquisition to revenue realization
+- **Economics Assessment**: Comprehensive business model evaluation
+
+### 📊 **Market Intelligence Analysis**
+- **Competitor Discovery**: Identify and analyze top competitors
+- **Traction Assessment**: Evaluate user growth, revenue performance, and market validation
+- **Market Opportunity**: Analyze market size, trends, and sentiment
+- **Product Differentiation**: Assess competitive advantages and defensibility
+
+### ⚠️ **Risk Assessment Analysis**
+- **Market Risk**: Market size, timing, and competitive threats
+- **Execution Risk**: Founder background, team capabilities, and governance
+- **Financial Risk**: Funding market conditions and economic factors
+- **Regulatory Risk**: Legal compliance and regulatory roadblocks
+
+### 🎯 **Comprehensive Analysis**
+- **Complete Evaluation**: Combine all analysis types for comprehensive investment insights
+- **Customizable Options**: Choose which analysis types to include
+- **Integrated Results**: Unified view of all analysis components
+
 ## 🏗️ Project Structure
 
 ```
@@ -36,6 +59,9 @@ A comprehensive AI-powered platform for analyzing startup documents, emails, and
 │   ├── backend.py              # FastAPI main server
 │   ├── document_ingestor.py    # Core document analysis logic
 │   ├── factcheck_agent.py      # AI fact-checking agent with web search
+│   ├── business_model_agent.py # Business model analysis agent
+│   ├── market_intelligence.py  # Market intelligence analysis agent
+│   ├── risk_assesment.py       # Risk assessment analysis agent
 │   ├── main.py                 # Fact-checking agent runner
 │   ├── prompts.py              # AI prompts for different document types
 │   ├── requirements.txt        # Python dependencies
@@ -43,6 +69,8 @@ A comprehensive AI-powered platform for analyzing startup documents, emails, and
 ├── 📁 frontend/                # React frontend application
 │   ├── public/
 │   │   └── index.html          # Main HTML file
+│   ├── providers/
+│   │   └── firebase.ts         # Firebase configuration
 │   ├── src/
 │   │   ├── components/         # React components
 │   │   │   ├── AnalysisResults.js    # Results display
@@ -190,6 +218,12 @@ npm run dev
 - `POST /analyze/document` - Upload and analyze documents
 - `POST /analyze/email` - Analyze email text
 - `POST /analyze/call` - Analyze call transcript
+
+### Advanced Analysis Endpoints
+- `POST /analyze/business-model` - Business model analysis
+- `POST /analyze/market-intelligence` - Market intelligence analysis
+- `POST /analyze/risk-assessment` - Risk assessment analysis
+- `POST /analyze/comprehensive` - Comprehensive analysis combining all types
 
 ### Fact-Checking Endpoints
 - `POST /analyze/factcheck` - Fact-check content with web search
