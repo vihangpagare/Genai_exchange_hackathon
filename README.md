@@ -1,4 +1,4 @@
-# 🚀 AI-Powered Startup Investment Analysis Platform
+# 🚀 AI Powered Startup Investment Analysis Platform
 
 A comprehensive AI-powered platform for analyzing startup documents, emails, and call transcripts using Google's Gemini AI with advanced business model analysis, market intelligence, risk assessment, and fact-checking capabilities.
 
