@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, FileText, Mail, Phone, Shield, PieChart, TrendingUp, AlertTriangle, Target, LogOut, User, Building2, Plus, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileText, Mail, Phone, Shield, PieChart, TrendingUp, AlertTriangle, Target, LogOut, User, Building2, Plus, CheckCircle, AlertCircle, Sparkles, Heart, Rocket } from 'lucide-react';
 import FileUpload from './FileUpload';
 import TextInput from './TextInput';
 import AnalysisResults from './AnalysisResults';
@@ -15,12 +15,12 @@ const StartupDashboard = ({ user, onLogout }) => {
   const [analyses, setAnalyses] = useState([]);
 
   const tabs = [
-    { id: 'document', label: 'Document Analysis', icon: FileText, color: 'from-blue-500 to-purple-600' },
-    { id: 'email', label: 'Email Analysis', icon: Mail, color: 'from-purple-500 to-pink-600' },
-    { id: 'call', label: 'Call Analysis', icon: Phone, color: 'from-indigo-500 to-blue-600' },
+    { id: 'document', label: 'Document Analysis', icon: FileText, color: 'from-purple-500 to-pink-600' },
+    { id: 'email', label: 'Email Analysis', icon: Mail, color: 'from-pink-500 to-rose-600' },
+    { id: 'call', label: 'Call Analysis', icon: Phone, color: 'from-blue-500 to-cyan-600' },
     { id: 'factcheck', label: 'Fact Check', icon: Shield, color: 'from-emerald-500 to-teal-600' },
-    { id: 'business-model', label: 'Business Model', icon: PieChart, color: 'from-orange-500 to-red-600' },
-    { id: 'market-intelligence', label: 'Market Intel', icon: TrendingUp, color: 'from-green-500 to-emerald-600' },
+    { id: 'business-model', label: 'Business Model', icon: PieChart, color: 'from-orange-500 to-amber-600' },
+    { id: 'market-intelligence', label: 'Market Intel', icon: TrendingUp, color: 'from-indigo-500 to-purple-600' },
     { id: 'risk-assessment', label: 'Risk Assessment', icon: AlertTriangle, color: 'from-red-500 to-pink-600' },
     { id: 'comprehensive', label: 'Comprehensive', icon: Target, color: 'from-violet-500 to-purple-600' }
   ];
@@ -209,25 +209,39 @@ const StartupDashboard = ({ user, onLogout }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white relative overflow-hidden">
+      {/* Floating gradient shapes */}
+      <div className="absolute top-20 left-10 w-32 h-32 bg-gradient-to-br from-pink-400 to-rose-500 rounded-full opacity-20 animate-pulse"></div>
+      <div className="absolute top-40 right-20 w-24 h-24 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full opacity-20 animate-bounce"></div>
+      <div className="absolute bottom-40 left-1/4 w-20 h-20 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full opacity-20 animate-pulse"></div>
+      <div className="absolute bottom-20 right-1/3 w-28 h-28 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full opacity-20 animate-bounce"></div>
+
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="relative z-10 bg-white/80 backdrop-blur-lg border-b-2 border-purple-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
-              <div className="h-8 w-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <Building2 className="h-5 w-5 text-white" />
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl shadow-lg">
+                <Building2 className="h-8 w-8 text-white" />
               </div>
-              <h1 className="text-xl font-bold text-gray-900">Startup Dashboard</h1>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h1 className="text-3xl font-black text-gray-900">Startup Dashboard</h1>
+                  <Sparkles className="h-6 w-6 text-pink-500" />
+                </div>
+                <p className="text-gray-600 text-lg font-medium">Upload documents and get AI-powered analysis</p>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <User className="h-4 w-4" />
-                <span>{user.displayName || user.email}</span>
+              <div className="px-4 py-2 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl">
+                <div className="flex items-center space-x-2 text-sm font-bold text-purple-700">
+                  <User className="h-4 w-4" />
+                  <span>{user.displayName || user.email}</span>
+                </div>
               </div>
               <button
                 onClick={onLogout}
-                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
+                className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-pink-600 rounded-2xl transition-all duration-300 transform hover:scale-105 border-2 border-gray-200 hover:border-red-300 font-bold"
               >
                 <LogOut className="h-4 w-4" />
                 <span>Sign Out</span>
@@ -237,36 +251,45 @@ const StartupDashboard = ({ user, onLogout }) => {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
         {/* Welcome Section */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to your Startup Dashboard!</h2>
-          <p className="text-gray-600 mb-4">
+        <div className="bg-white/80 backdrop-blur-lg rounded-3xl shadow-xl border-2 border-purple-100 p-8 mb-8">
+          <div className="flex items-center space-x-3 mb-4">
+            <h2 className="text-3xl font-black text-gray-900">Welcome to your Startup Dashboard!</h2>
+            <Heart className="h-6 w-6 text-pink-500" />
+          </div>
+          <p className="text-gray-600 text-lg font-medium mb-6">
             Upload your documents, analyze your business model, and get comprehensive insights about your startup.
           </p>
           
           {startupData && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-              <div className="bg-blue-50 rounded-lg p-4">
-                <div className="flex items-center space-x-2">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  <span className="text-sm font-medium text-blue-900">Documents</span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+              <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl">
+                    <FileText className="h-6 w-6 text-white" />
+                  </div>
+                  <span className="text-sm font-bold text-blue-900">Documents</span>
                 </div>
-                <p className="text-2xl font-bold text-blue-600 mt-1">{analyses.length}</p>
+                <p className="text-3xl font-black text-blue-600 mt-2">{analyses.length}</p>
               </div>
-              <div className="bg-green-50 rounded-lg p-4">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <span className="text-sm font-medium text-green-900">Analyses</span>
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border-2 border-emerald-200">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl">
+                    <CheckCircle className="h-6 w-6 text-white" />
+                  </div>
+                  <span className="text-sm font-bold text-emerald-900">Analyses</span>
                 </div>
-                <p className="text-2xl font-bold text-green-600 mt-1">{analyses.length}</p>
+                <p className="text-3xl font-black text-emerald-600 mt-2">{analyses.length}</p>
               </div>
-              <div className="bg-purple-50 rounded-lg p-4">
-                <div className="flex items-center space-x-2">
-                  <TrendingUp className="h-5 w-5 text-purple-600" />
-                  <span className="text-sm font-medium text-purple-900">Status</span>
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl">
+                    <TrendingUp className="h-6 w-6 text-white" />
+                  </div>
+                  <span className="text-sm font-bold text-purple-900">Status</span>
                 </div>
-                <p className="text-sm font-bold text-purple-600 mt-1">Active</p>
+                <p className="text-sm font-bold text-purple-600 mt-2">Active</p>
               </div>
             </div>
           )}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Sparkles, Mail, Phone, ArrowUpCircle, Mic, MicOff } from 'lucide-react';
 
-const TextInput = ({ onAnalyze, placeholder, buttonText }) => {
+const TextInput = ({ onAnalyze, placeholder, buttonText = 'Analyze' }) => {
   const [text, setText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
@@ -47,15 +47,17 @@ const TextInput = ({ onAnalyze, placeholder, buttonText }) => {
 
   // Auto-save to localStorage
   useEffect(() => {
-    const storageKey = `draft_${buttonText.toLowerCase().replace(/\s+/g, '_')}`;
-    const savedText = localStorage.getItem(storageKey);
-    if (savedText && !text) {
-      setText(savedText);
+    if (buttonText) {
+      const storageKey = `draft_${buttonText.toLowerCase().replace(/\s+/g, '_')}`;
+      const savedText = localStorage.getItem(storageKey);
+      if (savedText && !text) {
+        setText(savedText);
+      }
     }
   }, [buttonText, text]);
 
   useEffect(() => {
-    if (text) {
+    if (text && buttonText) {
       const storageKey = `draft_${buttonText.toLowerCase().replace(/\s+/g, '_')}`;
       localStorage.setItem(storageKey, text);
     }
@@ -74,15 +76,19 @@ const TextInput = ({ onAnalyze, placeholder, buttonText }) => {
     if (text.trim()) {
       onAnalyze(text.trim());
       // Clear draft after successful submission
-      const storageKey = `draft_${buttonText.toLowerCase().replace(/\s+/g, '_')}`;
-      localStorage.removeItem(storageKey);
+      if (buttonText) {
+        const storageKey = `draft_${buttonText.toLowerCase().replace(/\s+/g, '_')}`;
+        localStorage.removeItem(storageKey);
+      }
     }
   };
 
   const handleClear = () => {
     setText('');
-    const storageKey = `draft_${buttonText.toLowerCase().replace(/\s+/g, '_')}`;
-    localStorage.removeItem(storageKey);
+    if (buttonText) {
+      const storageKey = `draft_${buttonText.toLowerCase().replace(/\s+/g, '_')}`;
+      localStorage.removeItem(storageKey);
+    }
   };
 
   const toggleListening = () => {
@@ -100,7 +106,7 @@ const TextInput = ({ onAnalyze, placeholder, buttonText }) => {
       <div>
         <label htmlFor="text-input" className="flex items-center gap-3 text-lg md:text-xl font-semibold text-gray-800 mb-6">
           <div className="p-2 bg-blue-100 rounded-lg">
-            {buttonText.includes('Email') ? <Mail className="w-6 h-6 text-blue-600" /> : <Phone className="w-6 h-6 text-blue-600" />}
+            {buttonText && buttonText.includes('Email') ? <Mail className="w-6 h-6 text-blue-600" /> : <Phone className="w-6 h-6 text-blue-600" />}
           </div>
           Content to Analyze
         </label>

@@ -102,28 +102,42 @@ const Auth = ({ onAuthSuccess }) => {
               <button
                 type="button"
                 onClick={() => setUserType('startup')}
-                className={`p-4 rounded-lg border-2 transition-all ${
+                className={`p-4 rounded-lg border-2 transition-all duration-200 transform ${
                   userType === 'startup'
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-lg scale-105 ring-2 ring-blue-200'
+                    : 'border-gray-200 hover:border-gray-300 hover:shadow-md hover:scale-102'
                 }`}
               >
-                <Building2 className="h-6 w-6 mx-auto mb-2" />
+                <Building2 className={`h-6 w-6 mx-auto mb-2 ${userType === 'startup' ? 'text-blue-600' : 'text-gray-400'}`} />
                 <span className="font-medium">Startup</span>
-                <p className="text-xs text-gray-500 mt-1">Upload documents & get analyzed</p>
+                <p className={`text-xs mt-1 ${userType === 'startup' ? 'text-blue-600' : 'text-gray-500'}`}>
+                  Upload documents & get analyzed
+                </p>
+                {userType === 'startup' && (
+                  <div className="mt-2 flex justify-center">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  </div>
+                )}
               </button>
               <button
                 type="button"
                 onClick={() => setUserType('investor')}
-                className={`p-4 rounded-lg border-2 transition-all ${
+                className={`p-4 rounded-lg border-2 transition-all duration-200 transform ${
                   userType === 'investor'
-                    ? 'border-purple-500 bg-purple-50 text-purple-700'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-purple-500 bg-purple-50 text-purple-700 shadow-lg scale-105 ring-2 ring-purple-200'
+                    : 'border-gray-200 hover:border-gray-300 hover:shadow-md hover:scale-102'
                 }`}
               >
-                <TrendingUp className="h-6 w-6 mx-auto mb-2" />
+                <TrendingUp className={`h-6 w-6 mx-auto mb-2 ${userType === 'investor' ? 'text-purple-600' : 'text-gray-400'}`} />
                 <span className="font-medium">Investor</span>
-                <p className="text-xs text-gray-500 mt-1">Discover & analyze startups</p>
+                <p className={`text-xs mt-1 ${userType === 'investor' ? 'text-purple-600' : 'text-gray-500'}`}>
+                  Discover & analyze startups
+                </p>
+                {userType === 'investor' && (
+                  <div className="mt-2 flex justify-center">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                  </div>
+                )}
               </button>
             </div>
           </div>

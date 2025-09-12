@@ -106,6 +106,24 @@ class FirebaseService {
     }
   }
 
+  // Get all investors (for startup listing)
+  async getAllInvestors() {
+    try {
+      const q = query(collection(db, 'users'), where('userType', '==', 'investor'));
+      const querySnapshot = await getDocs(q);
+      const investors = [];
+      
+      querySnapshot.forEach((doc) => {
+        investors.push({ id: doc.id, ...doc.data() });
+      });
+      
+      return investors;
+    } catch (error) {
+      console.error('Error getting all investors:', error);
+      throw error;
+    }
+  }
+
   async updateStartup(startupId, updateData) {
     try {
       const docRef = doc(db, 'startups', startupId);
