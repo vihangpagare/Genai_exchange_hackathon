@@ -1,28 +1,78 @@
-import React, { useState, useEffect } from 'react';
-import { Upload, FileText, Mail, Phone, Shield, PieChart, TrendingUp, AlertTriangle, Target, LogOut, User, Building2, Plus, CheckCircle, AlertCircle, Sparkles, Heart, Rocket } from 'lucide-react';
+import React, { useState, useEffect, Suspense, lazy, memo, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Upload, FileText, Mail, Phone, Shield, AlertTriangle, Target, 
+  LogOut, User, Plus, CheckCircle, AlertCircle, Sparkles, Heart, Rocket,
+  Database, BarChart3, Search, Users, Calendar, Globe, Zap, Brain,
+  ArrowRight, Save, Eye, RefreshCw, Download, Share2, TrendingUp, Building2, X
+} from 'lucide-react';
 import FileUpload from './FileUpload';
+import PitchDeckUpload from './PitchDeckUpload';
 import TextInput from './TextInput';
 import AnalysisResults from './AnalysisResults';
-import { analyzeDocument, analyzeEmail, analyzeCall, factCheckContent, analyzeBusinessModel, analyzeMarketIntelligence, analyzeRiskAssessment, comprehensiveAnalysis } from '../services/api';
+import LoadingSpinner from './LoadingSpinner';
+import SkeletonLoader from './SkeletonLoader';
+import LazyWrapper from './LazyWrapper';
+import useLoading from '../hooks/useLoading';
+import MeetingManager from './MeetingManager';
+import { 
+  analyzeDocument, analyzeEmail, analyzeCall, factCheckContent, analyzeBusinessModel, 
+  analyzeMarketIntelligence, analyzeRiskAssessment, comprehensiveAnalysis,
+  analyzeCompetition, analyzeFounders, analyzeMarketSize, analyzeProductInfo,
+  analyzeInvestmentRecommendation, createStartupProfile, uploadDocument
+} from '../services/api';
+import { analysisService } from '../services/api';
 import firebaseService from '../services/firebaseService';
 
-const StartupDashboard = ({ user, onLogout }) => {
-  const [activeTab, setActiveTab] = useState('document');
-  const [isLoading, setIsLoading] = useState(false);
+const StartupDashboard = memo(({ user, onLogout }) => {
+  const navigate = useNavigate();
+  const [activeSection, setActiveSection] = useState('submit'); // 'submit' or 'analysis'
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
   const [startupData, setStartupData] = useState(null);
   const [analyses, setAnalyses] = useState([]);
+  const [submittedData, setSubmittedData] = useState(null);
+  const [analysisResults, setAnalysisResults] = useState(null);
+  const [analysisError, setAnalysisError] = useState(null);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [analysisInProgress, setAnalysisInProgress] = useState(false);
+  const [currentAnalysisStep, setCurrentAnalysisStep] = useState('');
+  
+  // Use loading hook for better state management
+  const { 
+    loading: isLoading, 
+    startLoading, 
+    stopLoading, 
+    isLoading: checkLoading,
+    withLoading 
+  } = useLoading();
 
-  const tabs = [
-    { id: 'document', label: 'Document Analysis', icon: FileText, color: 'from-purple-500 to-pink-600' },
-    { id: 'email', label: 'Email Analysis', icon: Mail, color: 'from-pink-500 to-rose-600' },
-    { id: 'call', label: 'Call Analysis', icon: Phone, color: 'from-blue-500 to-cyan-600' },
-    { id: 'factcheck', label: 'Fact Check', icon: Shield, color: 'from-emerald-500 to-teal-600' },
-    { id: 'business-model', label: 'Business Model', icon: PieChart, color: 'from-orange-500 to-amber-600' },
-    { id: 'market-intelligence', label: 'Market Intel', icon: TrendingUp, color: 'from-indigo-500 to-purple-600' },
-    { id: 'risk-assessment', label: 'Risk Assessment', icon: AlertTriangle, color: 'from-red-500 to-pink-600' },
-    { id: 'comprehensive', label: 'Comprehensive', icon: Target, color: 'from-violet-500 to-purple-600' }
+  // Helper function to format AI response text
+  const formatAnalysisText = (text) => {
+    if (!text) return '';
+    
+    // Split by common sentence endings and add line breaks
+    let formatted = text
+      .replace(/([.!?])\s+/g, '$1\n\n') // Add double line breaks after sentences
+      .replace(/(\d+\.)\s+/g, '\n$1 ') // Add line breaks before numbered lists
+      .replace(/([A-Z][a-z]+:)\s+/g, '\n\n$1 ') // Add line breaks before field labels
+      .replace(/\n{3,}/g, '\n\n') // Remove excessive line breaks
+      .trim();
+    
+    return formatted;
+  };
+
+  // Startup data form state
+  const [formData, setFormData] = useState({
+    documents: [],
+    emailTranscript: '',
+    callTranscript: ''
+  });
+
+  const sections = [
+    { id: 'submit', label: 'Submit Data', icon: Database, color: 'from-blue-500 to-cyan-600' },
+    { id: 'analysis', label: 'View Analysis', icon: BarChart3, color: 'from-purple-500 to-pink-600' },
+    { id: 'meetings', label: 'Meetings', icon: Calendar, color: 'from-green-500 to-teal-600' }
   ];
 
   useEffect(() => {
@@ -31,185 +81,1221 @@ const StartupDashboard = ({ user, onLogout }) => {
 
   const loadStartupData = async () => {
     try {
+      console.log('🔍 [STARTUP DASHBOARD] Loading startup data...');
+      console.log('🔍 [STARTUP DASHBOARD] User object:', user);
+      console.log('🔍 [STARTUP DASHBOARD] User UID:', user?.uid);
+      console.log('🔍 [STARTUP DASHBOARD] User email:', user?.email);
+      console.log('🔍 [STARTUP DASHBOARD] User displayName:', user?.displayName);
+      
+      if (!user?.uid) {
+        console.log('❌ [STARTUP DASHBOARD] No user ID available');
+        setError('Please log in to access your startup dashboard.');
+        return;
+      }
+
       // Load startup data and analyses from Firebase
-      const startups = await firebaseService.getAllStartups();
-      const userStartup = startups.find(s => s.name === user.displayName || s.name === user.email);
+      const userStartup = await firebaseService.findStartupByUserId(user.uid);
       
       if (userStartup) {
+        console.log('✅ [STARTUP DASHBOARD] Startup data loaded:', userStartup);
         setStartupData(userStartup);
-        const startupAnalyses = await firebaseService.getAnalysesByStartup(userStartup.id);
-        setAnalyses(startupAnalyses);
+        setSubmittedData(userStartup);
+        setFormData({ ...formData, ...userStartup });
+        // Load the single analysis for this startup
+        console.log('🔍 Fetching analysis for user:', user.uid);
+        const startupAnalysis = await firebaseService.getAnalysisByStartup(user.uid);
+        console.log('🔍 Analysis fetched:', startupAnalysis);
+        
+        if (startupAnalysis) {
+          setAnalyses([startupAnalysis]); // Store as single item array for consistency
+          
+          // Load the analysis results if available
+          if (startupAnalysis.analysisData) {
+            console.log('🔍 Setting analysis results:', startupAnalysis.analysisData);
+            setAnalysisResults(startupAnalysis.analysisData);
+          } else {
+            console.log('⚠️ No analysisData found in startupAnalysis');
+            setAnalysisResults({});
+          }
+        } else {
+          console.log('ℹ️ No analysis found for startup');
+          setAnalyses([]); // No analysis found
+          setAnalysisResults({});
+        }
+      } else {
+        console.log('ℹ️ [STARTUP DASHBOARD] No startup data found for user, redirecting to profile setup');
+        
+        // Show a brief message before redirecting
+        setResults({
+          type: 'info',
+          message: 'Welcome! Please complete your startup profile to get started.',
+          data: null
+        });
+        
+        // Redirect to profile settings after a short delay
+        setTimeout(() => {
+          navigate('/profile');
+        }, 2000);
+        
+        return; // Exit early to prevent further loading
       }
     } catch (error) {
       console.error('Error loading startup data:', error);
+      if (error.code === 'permission-denied') {
+        setError('Permission denied. Please check your Firebase rules and make sure you are logged in.');
+      } else {
+        setError('Failed to load startup data: ' + error.message);
+      }
     }
   };
 
-  const handleDocumentUpload = async (file) => {
-    setIsLoading(true);
-    setError(null);
-    setResults(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
+  const handleFormChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    
+    // Also immediately update submittedData for transcripts to make them available for analysis
+    if (field === 'emailTranscript' || field === 'callTranscript') {
+      setSubmittedData(prev => ({
+        ...prev,
+        [field]: value
+      }));
       
-      const response = await analyzeDocument(formData);
-      setResults(response);
+      console.log(`📝 ${field} updated and marked as ready for analysis`);
+    }
+  };
+
+  const handleDocumentUpload = async (pitchDeckData) => {
+    try {
+      console.log('📁 Received pitch deck data:', pitchDeckData);
       
-      // Reload startup data after analysis
-      await loadStartupData();
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleEmailAnalysis = async (emailText) => {
-    setIsLoading(true);
-    setError(null);
-    setResults(null);
-
-    try {
-      const response = await analyzeEmail(emailText);
-      setResults(response);
-      await loadStartupData();
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCallAnalysis = async (callText) => {
-    setIsLoading(true);
-    setError(null);
-    setResults(null);
-
-    try {
-      const response = await analyzeCall(callText);
-      setResults(response);
-      await loadStartupData();
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleFactCheck = async (content) => {
-    setIsLoading(true);
-    setError(null);
-    setResults(null);
-
-    try {
-      const response = await factCheckContent(content, 'general');
-      setResults(response);
-      await loadStartupData();
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleBusinessModelAnalysis = async (content) => {
-    setIsLoading(true);
-    setError(null);
-    setResults(null);
-
-    try {
-      const response = await analyzeBusinessModel({ email_text: content });
-      setResults(response);
-      await loadStartupData();
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleMarketIntelligenceAnalysis = async (content) => {
-    setIsLoading(true);
-    setError(null);
-    setResults(null);
-
-    try {
-      const response = await analyzeMarketIntelligence({ email_text: content });
-      setResults(response);
-      await loadStartupData();
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRiskAssessmentAnalysis = async (content) => {
-    setIsLoading(true);
-    setError(null);
-    setResults(null);
-
-    try {
-      const response = await analyzeRiskAssessment({ email_text: content });
-      setResults(response);
-      await loadStartupData();
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleComprehensiveAnalysis = async (content) => {
-    setIsLoading(true);
-    setError(null);
-    setResults(null);
-
-    try {
-      const response = await comprehensiveAnalysis({
-        content,
-        analysis_type: 'document',
-        include_business_model: true,
-        include_market_intelligence: true,
-        include_risk_assessment: true,
-        include_fact_check: true
+      if (!pitchDeckData) {
+        // Pitch deck was deleted, remove from form data
+        setFormData(prev => ({
+          ...prev,
+          documents: prev.documents.filter(doc => doc.category !== 'pitch_deck')
+        }));
+        
+        setSubmittedData(prev => ({
+          ...prev,
+          documents: (prev?.documents || []).filter(doc => doc.category !== 'pitch_deck')
+        }));
+        
+        setResults({
+          type: 'info',
+          message: 'Pitch deck removed successfully.'
+        });
+        return;
+      }
+      
+      // Convert pitch deck data to the expected format
+      const documentData = {
+        id: pitchDeckData.id || Date.now().toString(),
+        name: pitchDeckData.fileName,
+        size: pitchDeckData.fileSize,
+        type: pitchDeckData.fileType,
+        url: pitchDeckData.downloadURL,
+        path: pitchDeckData.storagePath,
+        category: 'pitch_deck',
+        uploadedAt: pitchDeckData.createdAt?.toDate?.() || pitchDeckData.uploadedAt?.toDate?.() || pitchDeckData.uploadedAt || new Date().toISOString()
+      };
+      
+      console.log('💾 Document data to store:', documentData);
+      
+      // Verify the document is properly stored in Firebase Storage
+      if (!documentData.url || !documentData.path) {
+        throw new Error('Document not properly stored in Firebase Storage');
+      }
+      
+      console.log('✅ Pitch deck stored in Firebase Storage:', {
+        name: documentData.name,
+        size: documentData.size,
+        url: documentData.url,
+        path: documentData.path
       });
-      setResults(response);
-      await loadStartupData();
+      
+      // Remove any existing pitch deck and add the new one
+      setFormData(prev => ({
+        ...prev,
+        documents: [
+          ...prev.documents.filter(doc => doc.category !== 'pitch_deck'),
+          documentData
+        ]
+      }));
+      
+      // Also update submittedData
+      setSubmittedData(prev => ({
+        ...prev,
+        documents: [
+          ...(prev?.documents || []).filter(doc => doc.category !== 'pitch_deck'),
+          documentData
+        ]
+      }));
+      
+      console.log('📋 Pitch deck added to form data and marked as ready for analysis');
+      
+      // Show success message
+      setResults({
+        type: 'success',
+        message: '✅ Pitch deck uploaded and stored in Firebase Storage! Ready for analysis.',
+        data: documentData
+      });
+      
+      return documentData;
     } catch (error) {
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
+      console.error('❌ Error processing pitch deck upload:', error);
+      setError('Failed to process uploaded pitch deck: ' + error.message);
+      throw error;
     }
   };
 
-  const getTabContent = () => {
-    switch (activeTab) {
-      case 'document':
-        return <FileUpload onFileUpload={handleDocumentUpload} />;
-      case 'email':
-        return <TextInput onAnalyze={handleEmailAnalysis} placeholder="Paste your email content here..." />;
-      case 'call':
-        return <TextInput onAnalyze={handleCallAnalysis} placeholder="Paste your call transcript here..." />;
-      case 'factcheck':
-        return <TextInput onAnalyze={handleFactCheck} placeholder="Paste content to fact-check here..." />;
-      case 'business-model':
-        return <TextInput onAnalyze={handleBusinessModelAnalysis} placeholder="Describe your business model..." />;
-      case 'market-intelligence':
-        return <TextInput onAnalyze={handleMarketIntelligenceAnalysis} placeholder="Describe your market and competition..." />;
-      case 'risk-assessment':
-        return <TextInput onAnalyze={handleRiskAssessmentAnalysis} placeholder="Describe potential risks and challenges..." />;
-      case 'comprehensive':
-        return <TextInput onAnalyze={handleComprehensiveAnalysis} placeholder="Paste comprehensive startup information here..." />;
-      default:
-        return null;
+  const handleSubmitData = async () => {
+    startLoading('submit');
+    setError(null);
+
+    try {
+      console.log('💾 Submitting startup data to Firebase...');
+      
+      // Save to Firebase
+      const startupProfile = {
+        ...formData,
+        userId: user.uid,
+        userEmail: user.email,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        // Mark data sources for analysis
+        dataSources: {
+          hasDocuments: !!(formData.documents && formData.documents.length > 0),
+          hasEmailTranscript: !!(formData.emailTranscript && formData.emailTranscript.trim()),
+          hasCallTranscript: !!(formData.callTranscript && formData.callTranscript.trim())
+        }
+      };
+
+      console.log('📊 Data sources available:', startupProfile.dataSources);
+
+      // Save to Firebase
+      await firebaseService.saveStartup(startupProfile);
+      
+      // Also save to backend API
+      await createStartupProfile(startupProfile);
+      
+      setSubmittedData(startupProfile);
+      setStartupData(startupProfile);
+      
+      console.log('✅ Startup data saved to Firebase successfully');
+      
+      // Analyze transcripts if provided
+      const transcriptAnalyses = [];
+      
+      if (formData.emailTranscript.trim()) {
+        console.log('📧 Analyzing email transcript...');
+        try {
+          const emailAnalysis = await analyzeEmail(formData.emailTranscript);
+          transcriptAnalyses.push({
+            type: 'email',
+            content: formData.emailTranscript,
+            analysis: emailAnalysis
+          });
+          console.log('✅ Email transcript analysis completed');
+        } catch (error) {
+          console.error('❌ Email analysis failed:', error);
+        }
+      }
+      
+      if (formData.callTranscript.trim()) {
+        console.log('📞 Analyzing call transcript...');
+        try {
+          const callAnalysis = await analyzeCall(formData.callTranscript);
+          transcriptAnalyses.push({
+            type: 'call',
+            content: formData.callTranscript,
+            analysis: callAnalysis
+          });
+          console.log('✅ Call transcript analysis completed');
+        } catch (error) {
+          console.error('❌ Call analysis failed:', error);
+        }
+      }
+      
+      // Save transcript analyses to Firebase
+      if (transcriptAnalyses.length > 0) {
+        console.log('💾 Saving transcript analyses to Firebase...');
+        for (const transcriptAnalysis of transcriptAnalyses) {
+          await firebaseService.saveAnalysis({
+            startupId: user.uid,
+            analysisType: transcriptAnalysis.type,
+            analysisData: transcriptAnalysis.analysis,
+            content: transcriptAnalysis.content,
+            status: 'success'
+          });
+        }
+        console.log('✅ Transcript analyses saved to Firebase');
+      }
+      
+      // Show success message
+      setResults({
+        type: 'success',
+        message: '✅ All data submitted and stored in Firebase! Ready for comprehensive analysis.',
+        data: startupProfile
+      });
+      
+      console.log('🎉 Data submission completed successfully');
+      
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      stopLoading('submit');
     }
   };
+
+  // Memoized analysis functions for better performance
+
+  // Simplified analysis handler with loading indicators
+  const handleRunAnalysis = async () => {
+    if (!submittedData) {
+      setError('Please submit your startup data first before running analysis.');
+      return;
+    }
+
+    startLoading('analysis');
+    setAnalysisInProgress(true);
+    setAnalysisError(null);
+    setAnalysisResults(null);
+    setAnalysisProgress(0);
+
+    try {
+      console.log('🚀 Starting comprehensive analysis...');
+      console.log('📊 Data sources available:', {
+        hasDocuments: !!(submittedData.documents && submittedData.documents.length > 0),
+        hasEmailTranscript: !!(submittedData.emailTranscript && submittedData.emailTranscript.trim()),
+        hasCallTranscript: !!(submittedData.callTranscript && submittedData.callTranscript.trim())
+      });
+
+      // Prepare context data
+      let contextData = '';
+      if (submittedData.companyName) contextData += `COMPANY: ${submittedData.companyName}\n`;
+      if (submittedData.description) contextData += `DESCRIPTION: ${submittedData.description}\n`;
+      if (submittedData.industry) contextData += `INDUSTRY: ${submittedData.industry}\n`;
+      if (submittedData.stage) contextData += `STAGE: ${submittedData.stage}\n`;
+      if (submittedData.businessModel) contextData += `BUSINESS MODEL: ${submittedData.businessModel}\n`;
+      if (submittedData.targetMarket) contextData += `TARGET MARKET: ${submittedData.targetMarket}\n`;
+      if (submittedData.coreProducts) contextData += `CORE PRODUCTS: ${submittedData.coreProducts}\n`;
+      if (submittedData.teamSize) contextData += `TEAM SIZE: ${submittedData.teamSize}\n`;
+      if (submittedData.founderBackground) contextData += `FOUNDER BACKGROUND: ${submittedData.founderBackground}\n`;
+      if (submittedData.emailTranscript) contextData += `\nEMAIL TRANSCRIPT:\n${submittedData.emailTranscript}\n`;
+      if (submittedData.callTranscript) contextData += `\nCALL TRANSCRIPT:\n${submittedData.callTranscript}\n`;
+      if (submittedData.documents?.length > 0) {
+        contextData += `\nUPLOADED DOCUMENTS: ${submittedData.documents.map(doc => doc.name).join(', ')}\n`;
+      }
+
+      // Fetch pitch deck content for analysis
+      console.log('📄 Fetching pitch deck content for analysis...');
+      const pitchDeckInfo = await analysisService.fetchPitchDeckContent(user.uid);
+      if (pitchDeckInfo.hasPitchDeck) {
+        contextData += `\nPITCH DECK AVAILABLE:\n`;
+        contextData += `- File Name: ${pitchDeckInfo.fileName}\n`;
+        contextData += `- File Type: ${pitchDeckInfo.fileType}\n`;
+        contextData += `- File Size: ${pitchDeckInfo.fileSize} bytes\n`;
+        contextData += `- Download URL: ${pitchDeckInfo.downloadURL}\n`;
+        console.log('✅ Pitch deck content added to analysis context');
+      } else {
+        console.log('ℹ️ No pitch deck found for analysis');
+        contextData += `\nPITCH DECK: Not available\n`;
+      }
+
+      // Debug: Log the context data being sent
+      console.log('📊 Analysis Context Data:', {
+        contextLength: contextData.length,
+        hasEmailTranscript: !!(submittedData.emailTranscript?.trim()),
+        hasCallTranscript: !!(submittedData.callTranscript?.trim()),
+        hasDocuments: !!(submittedData.documents?.length > 0),
+        hasPitchDeck: pitchDeckInfo.hasPitchDeck,
+        contextPreview: contextData.substring(0, 200) + '...'
+      });
+
+      // Run analysis steps with progress tracking
+      const analysisSteps = [
+        { name: 'Fact Check', fn: () => factCheckContent(contextData) },
+        { name: 'Market Size', fn: () => analyzeMarketSize(contextData) },
+        { name: 'Product Info', fn: () => analyzeProductInfo(contextData) },
+        { name: 'Competition', fn: () => analyzeCompetition(contextData) },
+        { name: 'Business Model', fn: () => analyzeBusinessModel(contextData) },
+        { name: 'Founders', fn: () => analyzeFounders(contextData) },
+        { name: 'Investment Recommendation', fn: () => analyzeInvestmentRecommendation(contextData) }
+      ];
+
+      const analysisResults = {};
+      let concatenatedText = '';
+      const analysisTimestamp = new Date().toISOString();
+
+      for (let i = 0; i < analysisSteps.length; i++) {
+        const step = analysisSteps[i];
+        const stepProgress = Math.round((i / analysisSteps.length) * 100);
+        setAnalysisProgress(stepProgress);
+        
+        try {
+          console.log(`🤖 Running ${step.name} analysis...`);
+          setCurrentAnalysisStep(step.name);
+          
+          // Create a progress callback for this specific step
+          const stepProgressCallback = (progress) => {
+            const overallProgress = stepProgress + (progress * (1 / analysisSteps.length));
+            setAnalysisProgress(Math.round(overallProgress));
+          };
+          
+          const result = await step.fn();
+          
+          // Debug: Log the actual result structure
+          console.log(`🔍 ${step.name} result structure:`, result);
+          
+          if (result?.data) {
+            // Backend returns: { success: true, agent_name: "text_analyzer", response: "actual analysis text", ... }
+            const fullText = result.data.response || result.data.fullText || result.data.analysis || result.data.summary || 'Analysis completed';
+            const summary = result.data.response || result.data.summary || result.data.analysis || 'Analysis completed';
+            
+            console.log(`📝 ${step.name} extracted text:`, { fullText: fullText.substring(0, 100) + '...', summary: summary.substring(0, 100) + '...' });
+            
+            analysisResults[step.name.toLowerCase().replace(' ', '')] = {
+              summary: summary,
+              fullText: fullText,
+              status: result.data.success ? 'completed' : 'error',
+              confidence: result.data.success ? 'high' : 'low',
+              timestamp: analysisTimestamp
+            };
+            
+            // Save individual analysis result to database
+            try {
+              const analysisType = step.name.toLowerCase().replace(' ', '_');
+              await firebaseService.saveIndividualAnalysis(user.uid, analysisType, {
+                summary: summary,
+                fullText: fullText,
+                status: result.data.success ? 'completed' : 'error',
+                confidence: result.data.success ? 'high' : 'low',
+                timestamp: analysisTimestamp,
+                contextData: contextData.substring(0, 1000) // Store first 1000 chars of context
+              });
+              console.log(`✅ Individual ${step.name} analysis saved to database`);
+            } catch (saveError) {
+              console.error(`❌ Error saving individual ${step.name} analysis:`, saveError);
+              // Continue with analysis even if saving fails
+            }
+            
+            // Concatenate the full text
+            concatenatedText += `\n\n=== ${step.name.toUpperCase()} ANALYSIS ===\n`;
+            concatenatedText += `Timestamp: ${analysisTimestamp}\n`;
+            concatenatedText += `Status: ${result.data.success ? 'completed' : 'error'}\n`;
+            concatenatedText += `Confidence: ${result.data.success ? 'high' : 'low'}\n\n`;
+            concatenatedText += fullText;
+            concatenatedText += '\n' + '='.repeat(50);
+          }
+          
+          console.log(`✅ ${step.name} analysis completed`);
+        } catch (stepError) {
+          console.error(`❌ ${step.name} analysis failed:`, stepError);
+          const errorText = `${step.name} analysis failed: ${stepError.message}`;
+          
+          analysisResults[step.name.toLowerCase().replace(' ', '')] = {
+            summary: errorText,
+            fullText: errorText,
+            status: 'error',
+            confidence: 'low',
+            timestamp: analysisTimestamp
+          };
+          
+          // Add error to concatenated text
+          concatenatedText += `\n\n=== ${step.name.toUpperCase()} ANALYSIS ===\n`;
+          concatenatedText += `Timestamp: ${analysisTimestamp}\n`;
+          concatenatedText += `Status: error\n`;
+          concatenatedText += `Confidence: low\n\n`;
+          concatenatedText += errorText;
+          concatenatedText += '\n' + '='.repeat(50);
+        }
+      }
+
+      setAnalysisProgress(100);
+      
+      // Save to Firebase (update existing or create new)
+      const analysisRecord = {
+        analysisType: 'comprehensive',
+        analysisData: analysisResults,
+        concatenatedText: concatenatedText,
+        dataSources: {
+          hasEmailTranscript: !!(submittedData.emailTranscript?.trim()),
+          hasCallTranscript: !!(submittedData.callTranscript?.trim()),
+          hasDocuments: !!(submittedData.documents?.length > 0)
+        },
+        status: 'completed',
+        wordCount: concatenatedText.split(' ').length,
+        characterCount: concatenatedText.length
+      };
+
+      const saveResult = await firebaseService.updateOrCreateAnalysis(user.uid, analysisRecord);
+      
+      // Update local state with the analysis record (including the ID)
+      const fullAnalysisRecord = {
+        id: saveResult.id,
+        startupId: user.uid,
+        ...analysisRecord,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      // Since we're updating in place, set analyses to contain only this one analysis
+      setAnalyses([fullAnalysisRecord]);
+      setAnalysisResults(analysisResults);
+      
+      // Clear any previous analysis results to show only the new one
+      setResults(null);
+      
+      console.log('✅ Analysis completed and saved to Firebase!');
+      
+    } catch (error) {
+      console.error('❌ Analysis failed:', error);
+      setAnalysisError(error.message);
+    } finally {
+      stopLoading('analysis');
+      setAnalysisInProgress(false);
+      setAnalysisProgress(0);
+    }
+  };
+
+  // Cancel analysis
+  const handleCancelAnalysis = () => {
+    stopLoading('analysis');
+    setAnalysisInProgress(false);
+    setAnalysisProgress(0);
+    setAnalysisError(null);
+  };
+
+
+  const renderSubmitDataSection = () => (
+    <div className="space-y-8">
+
+      {/* Workflow Info */}
+      <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-6">
+        <div className="flex items-center space-x-3 mb-3">
+          <div className="p-2 bg-blue-500 rounded-lg">
+            <Database className="h-5 w-5 text-white" />
+          </div>
+          <h3 className="text-lg font-bold text-blue-800">Data Storage Workflow</h3>
+        </div>
+        <p className="text-blue-700 text-sm">
+          📁 <strong>Pitch Deck:</strong> Uploaded immediately to Firebase Storage<br/>
+          📧 <strong>Email Transcript:</strong> Stored in Firebase when entered<br/>
+          📞 <strong>Call Transcript:</strong> Stored in Firebase when entered<br/>
+          💾 <strong>Submit Data:</strong> Saves all data and prepares for comprehensive analysis
+        </p>
+      </div>
+
+      {/* Pitch Deck Upload */}
+      <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-blue-100">
+        <div className="flex items-center space-x-3 mb-6">
+          <div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl">
+            <Upload className="h-6 w-6 text-white" />
+          </div>
+          <h3 className="text-2xl font-black text-gray-900">Pitch Deck</h3>
+        </div>
+        
+        <PitchDeckUpload 
+          startupId={user?.uid}
+          onPitchDeckChange={handleDocumentUpload}
+        />
+        
+        {formData.documents.length > 0 && (
+          <div className="mt-6">
+            <h4 className="text-lg font-bold text-gray-900 mb-4">Uploaded Pitch Deck</h4>
+            <div className="space-y-2">
+              {formData.documents.map((doc, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <FileText className="h-5 w-5 text-gray-500" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">{doc.name}</span>
+                      <span className="text-xs text-gray-500 ml-2">({Math.round(doc.size / 1024)} KB)</span>
+                    </div>
+                  </div>
+                  {doc.url && (
+                    <a 
+                      href={doc.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    >
+                      View
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+
+      {/* Email Transcript Input */}
+      <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-green-100">
+        <div className="flex items-center space-x-3 mb-6">
+          <div className="p-3 bg-gradient-to-br from-green-500 to-teal-600 rounded-xl">
+            <Mail className="h-6 w-6 text-white" />
+          </div>
+          <h3 className="text-2xl font-black text-gray-900">Email Transcripts</h3>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-bold text-gray-700 mb-2">Email Content</label>
+          <textarea
+            value={formData.emailTranscript}
+            onChange={(e) => handleFormChange('emailTranscript', e.target.value)}
+            rows={8}
+            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all duration-300"
+            placeholder="Paste email content here for AI analysis..."
+          />
+        </div>
+      </div>
+
+      {/* Call Transcript Input */}
+      <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-orange-100">
+        <div className="flex items-center space-x-3 mb-6">
+          <div className="p-3 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl">
+            <Phone className="h-6 w-6 text-white" />
+          </div>
+          <h3 className="text-2xl font-black text-gray-900">Call Transcripts</h3>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-bold text-gray-700 mb-2">Call Transcript</label>
+          <textarea
+            value={formData.callTranscript}
+            onChange={(e) => handleFormChange('callTranscript', e.target.value)}
+            rows={8}
+            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all duration-300"
+            placeholder="Paste call transcript here for AI analysis..."
+          />
+        </div>
+      </div>
+
+      {/* Submit Button */}
+      <div className="flex justify-center">
+        <button
+          onClick={handleSubmitData}
+          disabled={checkLoading('submit')}
+          className={`px-8 py-4 rounded-2xl font-bold text-lg transition-all duration-300 flex items-center space-x-3 ${
+            checkLoading('submit')
+              ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+              : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
+          }`}
+        >
+          {checkLoading('submit') ? (
+            <>
+              <RefreshCw className="h-5 w-5 animate-spin" />
+              <span>Saving to Firebase...</span>
+            </>
+          ) : (
+            <>
+              <Save className="h-5 w-5" />
+              <span>Save & Prepare for Analysis</span>
+              <ArrowRight className="h-5 w-5" />
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderMeetingsSection = () => (
+    <div className="space-y-8">
+      <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-6">
+        <div className="flex items-center space-x-3 mb-3">
+          <div className="p-2 bg-green-500 rounded-lg">
+            <Calendar className="h-5 w-5 text-white" />
+          </div>
+          <h3 className="text-lg font-bold text-green-800">Meeting Management</h3>
+        </div>
+        <p className="text-green-700">
+          Schedule and manage meetings with investors. Request meetings, view your calendar, and track meeting status.
+        </p>
+      </div>
+      
+      <MeetingManager userId={user?.uid} userType="startup" />
+    </div>
+  );
+
+  const renderAnalysisSection = () => (
+    <LazyWrapper 
+      skeletonType="dashboard" 
+      delay={300}
+      className="space-y-8"
+    >
+      {!submittedData ? (
+        <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-8 text-center">
+          <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+          <h3 className="text-2xl font-black text-yellow-800 mb-2">No Data Submitted</h3>
+          <p className="text-yellow-700 mb-6">
+            Please submit your startup data first before running analysis.
+          </p>
+          <button
+            onClick={() => setActiveSection('submit')}
+            className="px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-xl font-bold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+          >
+            Go to Submit Data
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Analysis Controls */}
+          <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-purple-100">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl">
+                  <Brain className="h-6 w-6 text-white" />
+                </div>
+                <h3 className="text-2xl font-black text-gray-900">AI Analysis</h3>
+              </div>
+              <div className="flex items-center space-x-3">
+                {analysisInProgress && (
+                  <button
+                    onClick={handleCancelAnalysis}
+                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center space-x-2"
+                  >
+                    <X className="h-4 w-4" />
+                    <span>Cancel</span>
+                  </button>
+                )}
+                
+                <button
+                  onClick={handleRunAnalysis}
+                  disabled={checkLoading('analysis')}
+                  className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-xl font-bold hover:shadow-lg transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center space-x-2"
+                >
+                  {checkLoading('analysis') ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Analyzing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4" />
+                      <span>Run Analysis</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border-2 border-blue-200">
+                <Shield className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                <h4 className="font-bold text-blue-900">Fact Check</h4>
+                <p className="text-sm text-blue-700">Verify claims</p>
+              </div>
+              <div className="text-center p-4 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border-2 border-emerald-200">
+                <TrendingUp className="h-8 w-8 text-emerald-600 mx-auto mb-2" />
+                <h4 className="font-bold text-emerald-900">Market Size</h4>
+                <p className="text-sm text-emerald-700">Market analysis</p>
+              </div>
+              <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200">
+                <Target className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+                <h4 className="font-bold text-purple-900">Product Info</h4>
+                <p className="text-sm text-purple-700">Product analysis</p>
+              </div>
+              <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl border-2 border-orange-200">
+                <Search className="h-8 w-8 text-orange-600 mx-auto mb-2" />
+                <h4 className="font-bold text-orange-900">Competition</h4>
+                <p className="text-sm text-orange-700">Competitor analysis</p>
+              </div>
+            </div>
+          </div>
+
+           {/* Progress Indicator */}
+           {checkLoading('analysis') && (
+             <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6">
+               <div className="flex items-center justify-between mb-4">
+                 <div className="flex items-center space-x-3">
+                   <RefreshCw className="h-6 w-6 text-blue-600 animate-spin" />
+                   <div>
+                     <h4 className="font-bold text-blue-800 text-lg">🔍 Analysis in Progress</h4>
+                     <p className="text-blue-600 text-sm">
+                       {currentAnalysisStep ? `Running ${currentAnalysisStep} analysis...` : 'Running comprehensive analysis...'}
+                     </p>
+                     <p className="text-blue-500 text-xs mt-1">
+                       {currentAnalysisStep ? 
+                         `Processing ${currentAnalysisStep.toLowerCase()} data...` : 
+                         'Analyzing pitch deck, transcripts, and business data...'
+                       }
+                     </p>
+                   </div>
+                 </div>
+                 <div className="text-right">
+                   <div className="text-2xl font-bold text-blue-600">
+                     {analysisProgress}%
+                   </div>
+                   <div className="text-xs text-blue-500">Complete</div>
+                 </div>
+               </div>
+               
+               {/* Progress Bar */}
+               <div className="w-full bg-blue-200 rounded-full h-3 mb-4">
+                 <div 
+                   className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500"
+                   style={{ width: `${analysisProgress}%` }}
+                 />
+               </div>
+               
+               {/* Analysis Steps */}
+               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                 {[
+                   { name: 'Fact Check', icon: '🔍', key: 'factcheck' },
+                   { name: 'Market Size', icon: '📊', key: 'marketsize' },
+                   { name: 'Product Info', icon: '🛍️', key: 'productinfo' },
+                   { name: 'Competition', icon: '🏆', key: 'competition' },
+                   { name: 'Business Model', icon: '💼', key: 'businessmodel' },
+                   { name: 'Founders', icon: '👥', key: 'founders' }
+                 ].map((step) => (
+                   <div 
+                     key={step.key}
+                     className={`p-2 rounded transition-all duration-300 ${
+                       currentAnalysisStep === step.name
+                         ? 'bg-green-200 text-green-800 border-2 border-green-300'
+                         : 'bg-blue-100 text-blue-700'
+                     }`}
+                   >
+                     {step.icon} {step.name}
+                     {currentAnalysisStep === step.name && (
+                       <div className="mt-1">
+                         <div className="w-full bg-green-300 rounded-full h-1">
+                           <div className="bg-green-600 h-1 rounded-full animate-pulse" style={{width: '60%'}}></div>
+                 </div>
+                 </div>
+                     )}
+                 </div>
+                 ))}
+                 </div>
+                 </div>
+           )}
+
+          {/* Current Analysis Status */}
+          {analyses.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg">
+                    <BarChart3 className="h-5 w-5 text-white" />
+                 </div>
+                  <h3 className="text-xl font-bold text-gray-900">Current Analysis</h3>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
+                    {analyses[0].updatedAt ? 'Updated' : 'Created'}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="p-4 rounded-xl border-2 border-green-200 bg-green-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 rounded-lg bg-green-100">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900">Latest Analysis</h4>
+                      <p className="text-sm text-gray-600">
+                        {analyses[0].updatedAt 
+                          ? `Updated: ${new Date(analyses[0].updatedAt.seconds * 1000).toLocaleString()}`
+                          : analyses[0].createdAt 
+                            ? `Created: ${new Date(analyses[0].createdAt.seconds * 1000).toLocaleString()}`
+                            : 'Date not available'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                      Current
+                    </span>
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                      {analyses[0].wordCount || 0} words
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+                  <div className="mt-4 text-center">
+                    <p className="text-sm text-gray-500 mb-3">
+                      Running a new analysis will update this current analysis
+                    </p>
+                    <button
+                      onClick={async () => {
+                        console.log('🔄 Manually refreshing analysis data...');
+                        const startupAnalysis = await firebaseService.getAnalysisByStartup(user.uid);
+                        console.log('🔄 Refreshed analysis:', startupAnalysis);
+                        if (startupAnalysis) {
+                          setAnalyses([startupAnalysis]);
+                          if (startupAnalysis.analysisData) {
+                            setAnalysisResults(startupAnalysis.analysisData);
+                          }
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
+                    >
+                      Refresh Analysis Data
+                    </button>
+                  </div>
+             </div>
+           )}
+
+          {/* Current Analysis Results */}
+          {analysisResults && (
+            <div className="space-y-4">
+              <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-blue-100">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
+                      <BarChart3 className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">
+                        Latest Analysis Results
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {analyses[0]?.createdAt ? 
+                          `Completed: ${new Date(analyses[0].createdAt.seconds ? analyses[0].createdAt.seconds * 1000 : analyses[0].createdAt).toLocaleString()}` :
+                          'Recently completed'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                      Current
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Individual Analysis Results */}
+              <div className="space-y-4">
+                {(() => {
+                  console.log('🔍 Analysis Results Debug:', analysisResults);
+                  console.log('🔍 Analysis Results Type:', typeof analysisResults);
+                  console.log('🔍 Analysis Results Keys:', analysisResults ? Object.keys(analysisResults) : 'null');
+                  
+                  // Handle different types of analysis results
+                  if (analysisResults && typeof analysisResults === 'object') {
+                    // If it's an array, convert to object
+                    if (Array.isArray(analysisResults)) {
+                      console.log('📊 Converting array to object format');
+                      const convertedResults = {};
+                      analysisResults.forEach((item, index) => {
+                        if (item && typeof item === 'object') {
+                          convertedResults[`analysis_${index + 1}`] = item;
+                        }
+                      });
+                      analysisResults = convertedResults;
+                    }
+                    
+                    // If it has the expected structure
+                    if (Object.keys(analysisResults).length > 0) {
+                    return Object.entries(analysisResults).map(([key, result]) => (
+                  <div key={key} className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className={`p-2 rounded-lg ${
+                          (result.status || 'unknown') === 'completed' ? 'bg-green-100' : 'bg-red-100'
+                        }`}>
+                          {(result.status || 'unknown') === 'completed' ? (
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                          ) : (
+                            <AlertCircle className="h-5 w-5 text-red-600" />
+                          )}
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-bold text-gray-900 capitalize">
+                            {key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()}
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            Status: {result.status || 'unknown'} | Confidence: {result.confidence || 'unknown'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        (result.status || 'unknown') === 'completed' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {result.status || 'unknown'}
+                      </span>
+                    </div>
+                    
+                    {/* Summary */}
+                    <div className="mb-4">
+                      <h5 className="font-semibold text-gray-800 mb-2">Summary:</h5>
+                      <div className="text-gray-700 bg-gray-50 p-4 rounded-lg">
+                        <div className="prose prose-sm max-w-none">
+                          {result.summary && typeof result.summary === 'string' ? (
+                            formatAnalysisText(result.summary).split('\n').map((line, index) => (
+                              <p key={index} className="mb-2 last:mb-0">
+                                {line.trim() || '\u00A0'}
+                              </p>
+                            ))
+                          ) : (
+                            <p className="text-gray-500 italic">No summary available</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Full Text */}
+                    {result.fullText && result.fullText !== result.summary && typeof result.fullText === 'string' && (
+                      <div>
+                        <h5 className="font-semibold text-gray-800 mb-2">Full Analysis:</h5>
+                        <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                          <div className="prose prose-sm max-w-none">
+                            {formatAnalysisText(result.fullText).split('\n').map((line, index) => (
+                              <p key={index} className="mb-3 last:mb-0 text-gray-700 leading-relaxed">
+                                {line.trim() || '\u00A0'}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                    ));
+                    } else {
+                      return (
+                        <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
+                          <div className="text-center py-8">
+                            <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4">
+                              <BarChart3 className="h-8 w-8 text-gray-400" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-700 mb-2">No Analysis Results</h3>
+                            <p className="text-gray-500">Run an analysis to see detailed results here.</p>
+                          </div>
+                        </div>
+                      );
+                    }
+                  } else {
+                    return (
+                      <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
+                        <div className="text-center py-8">
+                          <div className="p-4 bg-yellow-100 rounded-full w-16 h-16 mx-auto mb-4">
+                            <AlertCircle className="h-8 w-8 text-yellow-600" />
+                          </div>
+                          <h3 className="text-lg font-semibold text-gray-700 mb-2">Analysis Results Format Error</h3>
+                          <p className="text-gray-500 mb-4">The analysis results are in an unexpected format.</p>
+                          <div className="bg-gray-100 p-4 rounded-lg text-left">
+                            <p className="text-sm text-gray-600 font-mono">
+                              {JSON.stringify(analysisResults, null, 2).substring(0, 200)}...
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                })()}
+              </div>
+              
+              {/* Concatenated Analysis Text */}
+              {analyses[0]?.concatenatedText && (
+                <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-gradient-to-br from-gray-500 to-gray-600 rounded-lg">
+                        <FileText className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900">Complete Analysis Text</h3>
+                        <p className="text-sm text-gray-600">
+                          Full concatenated analysis results
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
+                        {analyses[0]?.wordCount || 0} words
+                      </span>
+                      <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
+                        {analyses[0]?.characterCount || 0} chars
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-50 rounded-xl p-4 max-h-96 overflow-y-auto">
+                    <div className="prose prose-sm max-w-none">
+                      {formatAnalysisText(analyses[0].concatenatedText).split('\n').map((line, index) => {
+                        // Check if this is a header line (starts with ===)
+                        if (line.trim().startsWith('===') && line.trim().endsWith('===')) {
+                          return (
+                            <h3 key={index} className="text-lg font-bold text-gray-800 mt-6 mb-3 first:mt-0">
+                              {line.trim().replace(/=/g, '').trim()}
+                            </h3>
+                          );
+                        }
+                        // Check if this is a field line (contains :)
+                        if (line.includes(':') && !line.includes('http')) {
+                          const [field, value] = line.split(':', 2);
+                          return (
+                            <div key={index} className="mb-2">
+                              <span className="font-semibold text-gray-700">{field.trim()}:</span>
+                              <span className="ml-2 text-gray-600">{value.trim()}</span>
+                            </div>
+                          );
+                        }
+                        // Regular paragraph
+                        return (
+                          <p key={index} className="mb-3 last:mb-0 text-gray-700 leading-relaxed">
+                            {line.trim() || '\u00A0'}
+                          </p>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 flex justify-end space-x-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(analyses[0].concatenatedText);
+                        // You could add a toast notification here
+                      }}
+                      className="px-4 py-2 bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
+                    >
+                      Copy Text
+                    </button>
+                    <button
+                      onClick={() => {
+                        const blob = new Blob([analyses[0].concatenatedText], { type: 'text/plain' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `analysis-${new Date().toISOString().split('T')[0]}.txt`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="px-4 py-2 bg-green-100 text-green-800 rounded-lg hover:bg-green-200 transition-colors text-sm font-medium"
+                    >
+                      Download Text
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Legacy Analysis Results */}
+          {results && results.type === 'analysis' && (
+            <div className="space-y-6">
+              <h3 className="text-2xl font-black text-gray-900">Analysis Results</h3>
+              
+              {results.data.factCheck && (
+                <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-blue-100">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <Shield className="h-6 w-6 text-blue-600" />
+                    <h4 className="text-xl font-bold text-gray-900">Fact Check Results</h4>
+                  </div>
+                  <div className="prose max-w-none">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-700">
+                      {JSON.stringify(results.data.factCheck, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+              
+              {results.data.marketSize && (
+                <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-emerald-100">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <TrendingUp className="h-6 w-6 text-emerald-600" />
+                    <h4 className="text-xl font-bold text-gray-900">Market Size Analysis</h4>
+                  </div>
+                  <div className="prose max-w-none">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-700">
+                      {JSON.stringify(results.data.marketSize, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+              
+              {results.data.productInfo && (
+                <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-purple-100">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <Target className="h-6 w-6 text-purple-600" />
+                    <h4 className="text-xl font-bold text-gray-900">Product Information Analysis</h4>
+                  </div>
+                  <div className="prose max-w-none">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-700">
+                      {JSON.stringify(results.data.productInfo, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+              
+              {results.data.competition && (
+                <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-orange-100">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <Search className="h-6 w-6 text-orange-600" />
+                    <h4 className="text-xl font-bold text-gray-900">Competition Analysis</h4>
+                  </div>
+                  <div className="prose max-w-none">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-700">
+                      {JSON.stringify(results.data.competition, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Previous Analyses */}
+          {analyses.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100">
+              <h3 className="text-2xl font-black text-gray-900 mb-6">Previous Analyses</h3>
+              <div className="space-y-4">
+                {analyses.map((analysis, index) => (
+                  <div key={index} className="border-2 border-gray-200 rounded-xl p-4 hover:border-purple-300 transition-colors duration-300">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <BarChart3 className="h-5 w-5 text-purple-600" />
+                        <div>
+                          <h4 className="font-bold text-gray-900">
+                            {analysis.analysisType || 'Comprehensive Analysis'}
+                          </h4>
+                          <p className="text-sm text-gray-500">
+                            {new Date(analysis.createdAt?.toDate?.() || analysis.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-bold">
+                          {analysis.status || 'Completed'}
+                        </span>
+                        <button className="p-2 text-gray-500 hover:text-purple-600 transition-colors duration-300">
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </LazyWrapper>
+  );
 
   return (
     <div className="min-h-screen bg-white relative overflow-hidden">
+      {/* Global Loading Overlay */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl">
+            <LoadingSpinner size="xl" text="Processing..." />
+          </div>
+        </div>
+      )}
+      
       {/* Floating gradient shapes */}
       <div className="absolute top-20 left-10 w-32 h-32 bg-gradient-to-br from-pink-400 to-rose-500 rounded-full opacity-20 animate-pulse"></div>
       <div className="absolute top-40 right-20 w-24 h-24 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full opacity-20 animate-bounce"></div>
@@ -229,7 +1315,7 @@ const StartupDashboard = ({ user, onLogout }) => {
                   <h1 className="text-3xl font-black text-gray-900">Startup Dashboard</h1>
                   <Sparkles className="h-6 w-6 text-pink-500" />
                 </div>
-                <p className="text-gray-600 text-lg font-medium">Upload documents and get AI-powered analysis</p>
+                <p className="text-gray-600 text-lg font-medium">Submit data and get AI-powered analysis</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -252,139 +1338,87 @@ const StartupDashboard = ({ user, onLogout }) => {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
-        {/* Welcome Section */}
-        <div className="bg-white/80 backdrop-blur-lg rounded-3xl shadow-xl border-2 border-purple-100 p-8 mb-8">
-          <div className="flex items-center space-x-3 mb-4">
-            <h2 className="text-3xl font-black text-gray-900">Welcome to your Startup Dashboard!</h2>
-            <Heart className="h-6 w-6 text-pink-500" />
-          </div>
-          <p className="text-gray-600 text-lg font-medium mb-6">
-            Upload your documents, analyze your business model, and get comprehensive insights about your startup.
-          </p>
-          
-          {startupData && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl">
-                    <FileText className="h-6 w-6 text-white" />
-                  </div>
-                  <span className="text-sm font-bold text-blue-900">Documents</span>
-                </div>
-                <p className="text-3xl font-black text-blue-600 mt-2">{analyses.length}</p>
-              </div>
-              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border-2 border-emerald-200">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl">
-                    <CheckCircle className="h-6 w-6 text-white" />
-                  </div>
-                  <span className="text-sm font-bold text-emerald-900">Analyses</span>
-                </div>
-                <p className="text-3xl font-black text-emerald-600 mt-2">{analyses.length}</p>
-              </div>
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl">
-                    <TrendingUp className="h-6 w-6 text-white" />
-                  </div>
-                  <span className="text-sm font-bold text-purple-900">Status</span>
-                </div>
-                <p className="text-sm font-bold text-purple-600 mt-2">Active</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Analysis Tabs */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-sm">
-              {/* Tab Navigation */}
-              <div className="border-b border-gray-200">
-                <nav className="flex space-x-8 px-6" aria-label="Tabs">
-                  {tabs.map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`${
-                          activeTab === tab.id
-                            ? 'border-blue-500 text-blue-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                        } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span>{tab.label}</span>
-                      </button>
-                    );
-                  })}
-                </nav>
-              </div>
-
-              {/* Tab Content */}
-              <div className="p-6">
-                {getTabContent()}
-              </div>
-            </div>
-
-            {/* Results */}
-            {results && (
-              <div className="mt-6">
-                <AnalysisResults results={results} />
-              </div>
-            )}
-
-            {/* Error Display */}
-            {error && (
-              <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <AlertCircle className="h-5 w-5 text-red-400 mr-2" />
-                  <span className="text-red-800">{error}</span>
-                </div>
-              </div>
-            )}
-
-            {/* Loading State */}
-            {isLoading && (
-              <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500 mr-2"></div>
-                  <span className="text-blue-800">Analyzing...</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Recent Analyses Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Analyses</h3>
-              {analyses.length === 0 ? (
-                <p className="text-gray-500 text-sm">No analyses yet. Upload a document to get started!</p>
-              ) : (
-                <div className="space-y-3">
-                  {analyses.slice(0, 5).map((analysis, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <FileText className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm font-medium text-gray-900">
-                          {analysis.analysisType || 'Analysis'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        {new Date(analysis.createdAt?.toDate?.() || analysis.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+        {/* Section Navigation */}
+        <div className="flex justify-center mb-8">
+          <div className="bg-white rounded-2xl shadow-lg p-2 border-2 border-gray-100 flex space-x-2">
+            {sections.map((section) => {
+              const Icon = section.icon;
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveSection(section.id)}
+                  className={`px-6 py-3 rounded-xl font-bold transition-all duration-300 transform hover:scale-105 flex items-center space-x-2 ${
+                    activeSection === section.id
+                      ? `bg-gradient-to-r ${section.color} text-white shadow-lg`
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span>{section.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
+
+        {/* Section Content */}
+        {activeSection === 'submit' && renderSubmitDataSection()}
+        {activeSection === 'analysis' && renderAnalysisSection()}
+        {activeSection === 'meetings' && renderMeetingsSection()}
+
+        {/* Success/Error/Info Messages */}
+        {results && results.type === 'success' && (
+          <div className="mt-6 bg-green-50 border-2 border-green-200 rounded-2xl p-6">
+            <div className="flex items-center space-x-3">
+              <CheckCircle className="h-6 w-6 text-green-600" />
+              <div>
+                <h3 className="text-lg font-bold text-green-800">{results.message}</h3>
+                <p className="text-green-700">You can now switch to the Analysis tab to run AI analysis on your data.</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {results && results.type === 'info' && (
+          <div className="mt-6 bg-blue-50 border-2 border-blue-200 rounded-2xl p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <User className="h-6 w-6 text-blue-600" />
+                <div>
+                  <h3 className="text-lg font-bold text-blue-800">{results.message}</h3>
+                  <p className="text-blue-700">Complete your profile to start using the dashboard features.</p>
+                  <div className="mt-3 flex items-center space-x-2">
+                    <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />
+                    <span className="text-sm text-blue-600">Auto-redirecting in a moment...</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/profile')}
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all duration-200 flex items-center space-x-2"
+              >
+                <User className="h-5 w-5" />
+                <span>Complete Profile Now</span>
+                <ArrowRight className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-6 bg-red-50 border-2 border-red-200 rounded-2xl p-6">
+            <div className="flex items-center space-x-3">
+              <AlertCircle className="h-6 w-6 text-red-600" />
+              <div>
+                <h3 className="text-lg font-bold text-red-800">Error</h3>
+                <p className="text-red-700">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
-};
+});
 
 export default StartupDashboard;

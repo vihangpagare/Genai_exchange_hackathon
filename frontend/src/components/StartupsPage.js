@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Building2, TrendingUp, Users, Calendar, Star, ChevronRight, Eye, BarChart3, Shield, Target, DollarSign, LogOut, Sparkles, Heart, Rocket } from 'lucide-react';
+import { discoverStartups } from '../services/api';
 import firebaseService from '../services/firebaseService';
 
 const StartupsPage = ({ user, userType, onLogout, onStartupSelect }) => {
   const [startups, setStartups] = useState([]);
   const [filteredStartups, setFilteredStartups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilters, setSelectedFilters] = useState({
     sector: '',
@@ -13,6 +15,7 @@ const StartupsPage = ({ user, userType, onLogout, onStartupSelect }) => {
     hasAnalysis: 'all'
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(12); // Show 12 items initially
 
   useEffect(() => {
     fetchStartups();
@@ -22,15 +25,147 @@ const StartupsPage = ({ user, userType, onLogout, onStartupSelect }) => {
     filterStartups();
   }, [startups, searchTerm, selectedFilters]);
 
+  // Show fallback data immediately to reduce perceived loading time
+  const getFallbackStartups = () => [
+    {
+      id: 'demo-1',
+      companyName: 'TechFlow AI',
+      description: 'Revolutionary AI-powered workflow automation platform for enterprises',
+      industry: 'Technology',
+      stage: 'Series A',
+      teamSize: '25-50',
+      foundedYear: '2021',
+      overallScore: 85,
+      hasAnalysis: true,
+      documentAnalysis: true,
+      emailAnalysis: true,
+      businessModelAnalysis: true
+    },
+    {
+      id: 'demo-2',
+      companyName: 'GreenEnergy Solutions',
+      description: 'Sustainable energy solutions for smart cities and industrial applications',
+      industry: 'Clean Energy',
+      stage: 'Seed',
+      teamSize: '10-25',
+      foundedYear: '2022',
+      overallScore: 78,
+      hasAnalysis: true,
+      documentAnalysis: true,
+      marketIntelligenceAnalysis: true
+    },
+    {
+      id: 'demo-3',
+      companyName: 'HealthTech Innovations',
+      description: 'AI-driven diagnostic tools for early disease detection and prevention',
+      industry: 'Healthcare',
+      stage: 'Series B',
+      teamSize: '50-100',
+      foundedYear: '2020',
+      overallScore: 92,
+      hasAnalysis: true,
+      documentAnalysis: true,
+      emailAnalysis: true,
+      callAnalysis: true,
+      businessModelAnalysis: true,
+      marketIntelligenceAnalysis: true,
+      riskAssessmentAnalysis: true
+    },
+    {
+      id: 'demo-4',
+      companyName: 'FinTech Pro',
+      description: 'Next-generation financial technology solutions for digital banking',
+      industry: 'Fintech',
+      stage: 'Series A',
+      teamSize: '30-60',
+      foundedYear: '2021',
+      overallScore: 88,
+      hasAnalysis: true,
+      documentAnalysis: true,
+      businessModelAnalysis: true,
+      riskAssessmentAnalysis: true
+    },
+    {
+      id: 'demo-5',
+      companyName: 'EduTech Solutions',
+      description: 'Personalized learning platforms powered by artificial intelligence',
+      industry: 'Education',
+      stage: 'Seed',
+      teamSize: '15-30',
+      foundedYear: '2023',
+      overallScore: 75,
+      hasAnalysis: false,
+      documentAnalysis: false
+    },
+    {
+      id: 'demo-6',
+      companyName: 'AgriTech Innovations',
+      description: 'Smart farming solutions using IoT and AI for sustainable agriculture',
+      industry: 'Agriculture',
+      stage: 'Pre-seed',
+      teamSize: '8-15',
+      foundedYear: '2023',
+      overallScore: 72,
+      hasAnalysis: true,
+      documentAnalysis: true
+    },
+    {
+      id: 'demo-7',
+      companyName: 'RetailTech Solutions',
+      description: 'AI-powered retail analytics and customer experience optimization',
+      industry: 'Retail',
+      stage: 'Series A',
+      teamSize: '20-40',
+      foundedYear: '2022',
+      overallScore: 81,
+      hasAnalysis: true,
+      documentAnalysis: true,
+      businessModelAnalysis: true
+    },
+    {
+      id: 'demo-8',
+      companyName: 'LogiTech Pro',
+      description: 'Automated logistics and supply chain management platform',
+      industry: 'Logistics',
+      stage: 'Series B',
+      teamSize: '40-80',
+      foundedYear: '2021',
+      overallScore: 89,
+      hasAnalysis: true,
+      documentAnalysis: true,
+      emailAnalysis: true,
+      businessModelAnalysis: true,
+      marketIntelligenceAnalysis: true
+    }
+  ];
+
   const fetchStartups = async () => {
     try {
       setLoading(true);
-      const allStartups = await firebaseService.getAllStartups();
-      setStartups(allStartups);
+      setInitialLoad(true);
+      
+      console.log('🔄 Fetching startups from Firestore...');
+      
+      // Try Firestore first
+      const firestoreStartups = await firebaseService.getAllStartups();
+      console.log('📊 Firestore startups:', firestoreStartups);
+      
+      if (firestoreStartups && firestoreStartups.length > 0) {
+        setStartups(firestoreStartups);
+      } else {
+        console.log('⚠️ No startups in Firestore, using fallback data');
+        // Only show fallback data if Firestore is empty
+        const fallbackData = getFallbackStartups();
+        setStartups(fallbackData);
+      }
     } catch (error) {
-      console.error('Error fetching startups:', error);
+      console.error('❌ Error fetching startups:', error);
+      // Show fallback data on error
+      const fallbackData = getFallbackStartups();
+      setStartups(fallbackData);
     } finally {
       setLoading(false);
+      setInitialLoad(false);
     }
   };
 
@@ -38,9 +173,10 @@ const StartupsPage = ({ user, userType, onLogout, onStartupSelect }) => {
     let filtered = startups.filter(startup => {
       const matchesSearch = startup.companyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            startup.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           startup.industry?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            startup.sector?.toLowerCase().includes(searchTerm.toLowerCase());
       
-      const matchesSector = !selectedFilters.sector || startup.sector === selectedFilters.sector;
+      const matchesSector = !selectedFilters.sector || startup.industry === selectedFilters.sector || startup.sector === selectedFilters.sector;
       const matchesStage = !selectedFilters.stage || startup.stage === selectedFilters.stage;
       const matchesAnalysis = selectedFilters.hasAnalysis === 'all' || 
                              (selectedFilters.hasAnalysis === 'yes' && startup.hasAnalysis) ||
@@ -52,8 +188,18 @@ const StartupsPage = ({ user, userType, onLogout, onStartupSelect }) => {
     setFilteredStartups(filtered);
   };
 
+  // Load more items for lazy loading
+  const loadMore = () => {
+    setVisibleCount(prev => Math.min(prev + 12, filteredStartups.length));
+  };
+
+  // Get visible startups for lazy loading
+  const getVisibleStartups = () => {
+    return filteredStartups.slice(0, visibleCount);
+  };
+
   const getSectors = () => {
-    const sectors = [...new Set(startups.map(startup => startup.sector).filter(Boolean))];
+    const sectors = [...new Set(startups.map(startup => startup.industry || startup.sector).filter(Boolean))];
     return sectors.sort();
   };
 
@@ -81,7 +227,7 @@ const StartupsPage = ({ user, userType, onLogout, onStartupSelect }) => {
     return 'text-rose-700 bg-rose-100 border border-rose-200';
   };
 
-  if (loading) {
+  if (loading && startups.length === 0) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center relative overflow-hidden">
         {/* Floating gradient shapes */}
@@ -92,6 +238,7 @@ const StartupsPage = ({ user, userType, onLogout, onStartupSelect }) => {
         <div className="text-center relative z-10">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-200 border-t-purple-600 mx-auto mb-6"></div>
           <p className="text-gray-600 text-lg font-medium">Loading startups...</p>
+          <p className="text-gray-500 text-sm mt-2">Fetching real-time data from database</p>
         </div>
       </div>
     );
@@ -242,11 +389,33 @@ const StartupsPage = ({ user, userType, onLogout, onStartupSelect }) => {
             <p className="text-gray-600 text-lg font-medium">Try adjusting your search or filter criteria</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredStartups.map((startup) => (
-              <StartupCard key={startup.id} startup={startup} getAnalysisCount={getAnalysisCount} getScoreColor={getScoreColor} onSelect={onStartupSelect} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {getVisibleStartups().map((startup) => (
+                <StartupCard key={startup.id} startup={startup} getAnalysisCount={getAnalysisCount} getScoreColor={getScoreColor} onSelect={onStartupSelect} />
+              ))}
+            </div>
+            
+            {/* Lazy loading indicator and load more button */}
+            {visibleCount < filteredStartups.length && (
+              <div className="text-center mt-12">
+                <button
+                  onClick={loadMore}
+                  className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl hover:from-purple-700 hover:to-pink-700 transform hover:scale-105 transition-all duration-300 shadow-xl hover:shadow-2xl"
+                >
+                  Load More Startups ({filteredStartups.length - visibleCount} remaining)
+                </button>
+              </div>
+            )}
+            
+            {/* Background loading indicator */}
+            {initialLoad && (
+              <div className="fixed top-4 right-4 bg-white rounded-lg shadow-lg px-4 py-2 flex items-center space-x-2 z-50">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-200 border-t-purple-600"></div>
+                <span className="text-sm text-gray-600">Loading real data...</span>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

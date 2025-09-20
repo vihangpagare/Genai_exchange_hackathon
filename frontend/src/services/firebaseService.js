@@ -9,11 +9,29 @@ import {
   query, 
   orderBy, 
   where,
+  limit,
   serverTimestamp 
 } from 'firebase/firestore';
-import { db } from '../providers/firebase';
+import { 
+  getStorage, 
+  ref, 
+  uploadBytes, 
+  getDownloadURL, 
+  deleteObject,
+  uploadBytesResumable,
+  listAll,
+  getMetadata
+} from 'firebase/storage';
+import { db, auth } from '../providers/firebase';
+
+const storage = getStorage();
 
 class FirebaseService {
+  // Authentication
+  getCurrentUser() {
+    return auth.currentUser;
+  }
+
   // Users Collection
   async createUser(userData) {
     try {
@@ -66,9 +84,50 @@ class FirebaseService {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      
       return docRef.id;
     } catch (error) {
       console.error('Error creating startup:', error);
+      throw error;
+    }
+  }
+
+  async saveStartup(startupData) {
+    try {
+      // Check if startup already exists
+      const existingStartup = await this.findStartupByUserId(startupData.userId);
+      
+      if (existingStartup) {
+        // Update existing startup
+        const docRef = doc(db, 'startups', existingStartup.id);
+        await updateDoc(docRef, {
+          ...startupData,
+          updatedAt: serverTimestamp()
+        });
+        return existingStartup.id;
+      } else {
+        // Create new startup
+        return await this.createStartup(startupData);
+      }
+    } catch (error) {
+      console.error('Error saving startup:', error);
+      throw error;
+    }
+  }
+
+  async findStartupByUserId(userId) {
+    try {
+      const q = query(collection(db, 'startups'), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        return { id: doc.id, ...doc.data() };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error finding startup by user ID:', error);
       throw error;
     }
   }
@@ -106,10 +165,81 @@ class FirebaseService {
     }
   }
 
+  // Investors Collection
+  async createInvestor(investorData) {
+    try {
+      const docRef = await addDoc(collection(db, 'investors'), {
+        ...investorData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error creating investor:', error);
+      throw error;
+    }
+  }
+
+  async saveInvestor(investorData) {
+    try {
+      // Check if investor already exists
+      const existingInvestor = await this.findInvestorByUserId(investorData.userId);
+      
+      if (existingInvestor) {
+        // Update existing investor
+        const docRef = doc(db, 'investors', existingInvestor.id);
+        await updateDoc(docRef, {
+          ...investorData,
+          updatedAt: serverTimestamp()
+        });
+        return existingInvestor.id;
+      } else {
+        // Create new investor
+        return await this.createInvestor(investorData);
+      }
+    } catch (error) {
+      console.error('Error saving investor:', error);
+      throw error;
+    }
+  }
+
+  async findInvestorByUserId(userId) {
+    try {
+      const q = query(collection(db, 'investors'), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        return { id: doc.id, ...doc.data() };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error finding investor by user ID:', error);
+      throw error;
+    }
+  }
+
+  async getInvestor(investorId) {
+    try {
+      const docRef = doc(db, 'investors', investorId);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() };
+      } else {
+        throw new Error('Investor not found');
+      }
+    } catch (error) {
+      console.error('Error getting investor:', error);
+      throw error;
+    }
+  }
+
   // Get all investors (for startup listing)
   async getAllInvestors() {
     try {
-      const q = query(collection(db, 'users'), where('userType', '==', 'investor'));
+      const q = query(collection(db, 'investors'), orderBy('createdAt', 'desc'));
       const querySnapshot = await getDocs(q);
       const investors = [];
       
@@ -152,6 +282,124 @@ class FirebaseService {
     }
   }
 
+  // Firebase Storage Methods
+  async uploadFile(file, path, onProgress = null) {
+    try {
+      
+      const storageRef = ref(storage, path);
+      
+      if (onProgress) {
+        // Upload with progress tracking
+        const uploadTask = uploadBytesResumable(storageRef, file);
+        
+        return new Promise((resolve, reject) => {
+          uploadTask.on('state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              onProgress(progress);
+            },
+            (error) => {
+              console.error('Firebase Storage: Upload error:', error);
+              reject(error);
+            },
+            async () => {
+              try {
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                resolve({
+                  url: downloadURL,
+                  path: path,
+                  name: file.name,
+                  size: file.size,
+                  type: file.type
+                });
+              } catch (error) {
+                console.error('Firebase Storage: Error getting download URL:', error);
+                reject(error);
+              }
+            }
+          );
+        });
+      } else {
+        // Simple upload without progress
+        const snapshot = await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        
+        return {
+          url: downloadURL,
+          path: path,
+          name: file.name,
+          size: file.size,
+          type: file.type
+        };
+      }
+    } catch (error) {
+      console.error('Firebase Storage: Error uploading file:', error);
+      throw error;
+    }
+  }
+
+  async deleteFile(path) {
+    try {
+      const fileRef = ref(storage, path);
+      await deleteObject(fileRef);
+      return true;
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      throw error;
+    }
+  }
+
+  async uploadStartupDocument(file, startupId, category = 'general', onProgress) {
+    try {
+      const timestamp = Date.now();
+      const fileExtension = file.name.split('.').pop();
+      const fileName = `${file.name.replace(/\.[^/.]+$/, "")}_${timestamp}`;
+      const path = `startups/${startupId}/documents/${category}/${fileName}.${fileExtension}`;
+      
+      const uploadResult = await this.uploadFile(file, path, onProgress);
+      
+      // Save document metadata to Firestore
+      const documentData = {
+        startupId,
+        category,
+        fileName: file.name,
+        storagePath: path,
+        downloadURL: uploadResult.url,
+        fileSize: file.size,
+        fileType: file.type,
+        createdAt: serverTimestamp(),
+        uploadedAt: serverTimestamp()
+      };
+      
+      const docId = await this.createDocument(startupId, documentData);
+      
+      return {
+        id: docId,
+        ...documentData,
+        ...uploadResult
+      };
+    } catch (error) {
+      console.error('Error uploading startup document:', error);
+      throw error;
+    }
+  }
+
+  async uploadPitchDeck(file, startupId, onProgress) {
+    return this.uploadStartupDocument(file, startupId, 'pitch_deck', onProgress);
+  }
+
+  async uploadFinancialProjections(file, startupId) {
+    return this.uploadStartupDocument(file, startupId, 'financial_projections');
+  }
+
+  async uploadBusinessPlan(file, startupId) {
+    return this.uploadStartupDocument(file, startupId, 'business_plan');
+  }
+
+  async uploadOtherDocument(file, startupId) {
+    return this.uploadStartupDocument(file, startupId, 'other');
+  }
+
   async getDocumentsByStartup(startupId) {
     try {
       const q = query(
@@ -169,6 +417,180 @@ class FirebaseService {
       return documents;
     } catch (error) {
       console.error('Error getting documents:', error);
+      throw error;
+    }
+  }
+
+  // Test function to debug Storage access
+  async testStorageAccess(startupId) {
+    try {
+      console.log(`🧪 Testing Storage access for startup: ${startupId}`);
+      
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.error('❌ No authenticated user found');
+        return false;
+      }
+      
+      console.log(`👤 Current user: ${currentUser.uid}`);
+      console.log(`🔑 User token: ${currentUser.accessToken ? 'Present' : 'Missing'}`);
+      
+      // Test basic Storage access
+      const testPath = `startups/${startupId}/`;
+      const testRef = ref(storage, testPath);
+      
+      console.log(`📁 Testing access to: ${testPath}`);
+      console.log(`🔐 Storage reference: ${testRef.fullPath}`);
+      
+      try {
+        const listResult = await listAll(testRef);
+        console.log(`✅ Storage access successful! Found ${listResult.items.length} items`);
+        return true;
+      } catch (error) {
+        console.error('❌ Storage access failed:', error);
+        console.error('❌ Error code:', error.code);
+        console.error('❌ Error message:', error.message);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Test function error:', error);
+      return false;
+    }
+  }
+
+  // Pitch Deck Management
+  async getPitchDeck(startupId) {
+    try {
+      console.log(`🔍 Fetching pitch deck from Storage for startup: ${startupId}`);
+      
+      // First, let's check if the user is authenticated
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.error('❌ No authenticated user found');
+        throw new Error('User not authenticated');
+      }
+      
+      console.log(`👤 Current user: ${currentUser.uid}`);
+      console.log(`🔑 User token: ${currentUser.accessToken ? 'Present' : 'Missing'}`);
+      
+      // Check if startupId matches current user
+      if (startupId !== currentUser.uid) {
+        console.warn(`⚠️ StartupId (${startupId}) doesn't match current user (${currentUser.uid})`);
+      }
+      
+      // List files in the startup's pitch deck folder
+      const pitchDeckPath = `startups/${startupId}/documents/pitch_deck/`;
+      const listRef = ref(storage, pitchDeckPath);
+      
+      console.log(`📁 Listing files in: ${pitchDeckPath}`);
+      console.log(`🔐 Storage reference: ${listRef.fullPath}`);
+      
+      try {
+        const listResult = await listAll(listRef);
+        console.log(`📊 List result: ${listResult.items.length} items found`);
+        
+        if (listResult.items.length > 0) {
+        // Get the most recent pitch deck file
+        const pitchDeckFile = listResult.items[0];
+        console.log(`📄 Found pitch deck file: ${pitchDeckFile.name}`);
+        
+        // Get download URL
+        const downloadURL = await getDownloadURL(pitchDeckFile);
+        
+        // Get file metadata
+        const metadata = await getMetadata(pitchDeckFile);
+        
+        console.log('✅ Pitch deck found in Storage:', {
+          name: pitchDeckFile.name,
+          size: metadata.size,
+          contentType: metadata.contentType,
+          downloadURL: downloadURL
+        });
+        
+        return {
+          id: pitchDeckFile.name,
+          fileName: pitchDeckFile.name,
+          fileType: metadata.contentType,
+          fileSize: metadata.size,
+          downloadURL: downloadURL,
+          storagePath: pitchDeckFile.fullPath,
+          createdAt: metadata.timeCreated,
+          updatedAt: metadata.updated
+        };
+        } else {
+          console.log('ℹ️ No pitch deck found in Storage');
+          return null;
+        }
+      } catch (listError) {
+        console.error('❌ Error listing files in Storage:', listError);
+        console.error('❌ Error code:', listError.code);
+        console.error('❌ Error message:', listError.message);
+        
+        // Check if it's a permission error
+        if (listError.code === 'storage/unauthorized') {
+          console.error('🔒 Permission denied - user may not have access to this path');
+          throw new Error('Permission denied. Please check your Firebase rules and make sure you are logged in.');
+        }
+        
+        // For other errors, return null so analysis can continue
+        return null;
+      }
+    } catch (error) {
+      console.error('Error fetching pitch deck from Storage:', error);
+      // Don't throw error, just return null so analysis can continue
+      return null;
+    }
+  }
+
+  async deletePitchDeck(startupId, documentId) {
+    try {
+      // Get document data first
+      const docRef = doc(db, 'documents', documentId);
+      const docSnap = await getDoc(docRef);
+      
+      if (!docSnap.exists()) {
+        throw new Error('Document not found');
+      }
+      
+      const documentData = docSnap.data();
+      
+      // Delete from Firebase Storage
+      if (documentData.storagePath) {
+        const fileRef = ref(storage, documentData.storagePath);
+        await deleteObject(fileRef);
+      }
+      
+      // Delete from Firestore
+      await deleteDoc(docRef);
+      
+      return true;
+    } catch (error) {
+      console.error('Error deleting pitch deck:', error);
+      throw error;
+    }
+  }
+
+  async replacePitchDeck(file, startupId, onProgress) {
+    try {
+      // Get existing pitch deck in parallel with upload preparation
+      const [existingPitchDeck] = await Promise.all([
+        this.getPitchDeck(startupId).catch(() => null) // Don't fail if no existing deck
+      ]);
+      
+      // Upload new pitch deck first (this is the heavy operation)
+      const newPitchDeck = await this.uploadPitchDeck(file, startupId, onProgress);
+      
+      // Delete old pitch deck in background (don't wait for it)
+      if (existingPitchDeck) {
+        this.deletePitchDeck(startupId, existingPitchDeck.id).catch(error => {
+          console.error('Error deleting old pitch deck:', error);
+          // Don't throw - the new upload succeeded
+        });
+      }
+      
+      return newPitchDeck;
+    } catch (error) {
+      console.error('Error replacing pitch deck:', error);
       throw error;
     }
   }
@@ -206,6 +628,165 @@ class FirebaseService {
       return analyses;
     } catch (error) {
       console.error('Error getting analyses:', error);
+      throw error;
+    }
+  }
+
+  async saveAnalysis(analysisData) {
+    try {
+      const docRef = await addDoc(collection(db, 'analyses'), {
+        ...analysisData,
+        createdAt: serverTimestamp()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error saving analysis:', error);
+      throw error;
+    }
+  }
+
+  // Update or create analysis for a startup (single analysis per startup)
+  async updateOrCreateAnalysis(startupId, analysisData) {
+    try {
+      console.log(`🔄 Updating or creating analysis for startup: ${startupId}`);
+      
+      // First, check if an analysis already exists for this startup
+      const q = query(
+        collection(db, 'analyses'), 
+        where('startupId', '==', startupId)
+      );
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        // Update existing analysis
+        const existingDoc = querySnapshot.docs[0];
+        const docId = existingDoc.id;
+        
+        console.log(`📝 Updating existing analysis: ${docId}`);
+        
+        const updateData = {
+          ...analysisData,
+          updatedAt: serverTimestamp()
+        };
+        
+        console.log(`📊 Updating analysis with data:`, updateData);
+        
+        await updateDoc(doc(db, 'analyses', docId), updateData);
+        
+        console.log(`✅ Updated analysis document: ${docId}`);
+        return { id: docId, isUpdate: true };
+      } else {
+        // Create new analysis
+        console.log(`🆕 Creating new analysis for startup: ${startupId}`);
+        
+        const docData = {
+          startupId,
+          ...analysisData,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
+        
+        console.log(`📊 Creating analysis with data:`, docData);
+        
+        const docRef = await addDoc(collection(db, 'analyses'), docData);
+        
+        console.log(`✅ Created analysis document: ${docRef.id}`);
+        return { id: docRef.id, isUpdate: false };
+      }
+    } catch (error) {
+      console.error('Error updating or creating analysis:', error);
+      throw error;
+    }
+  }
+
+  // Get single analysis for a startup
+  async getAnalysisByStartup(startupId) {
+    try {
+      console.log(`🔍 Getting analysis for startup: ${startupId}`);
+      
+      const q = query(
+        collection(db, 'analyses'), 
+        where('startupId', '==', startupId)
+      );
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        console.log(`ℹ️ No analysis found for startup: ${startupId}`);
+        return null;
+      }
+      
+      const doc = querySnapshot.docs[0];
+      const analysisData = { id: doc.id, ...doc.data() };
+      
+      console.log(`✅ Found analysis: ${doc.id}`);
+      console.log(`📊 Analysis data structure:`, analysisData);
+      console.log(`📊 Analysis data keys:`, Object.keys(analysisData));
+      console.log(`📊 Analysis data.analysisData:`, analysisData.analysisData);
+      
+      return analysisData;
+    } catch (error) {
+      console.error('Error getting analysis by startup:', error);
+      throw error;
+    }
+  }
+
+  // Save individual analysis result
+  async saveIndividualAnalysis(startupId, analysisType, analysisData) {
+    try {
+      console.log(`💾 Saving individual analysis: ${analysisType} for startup: ${startupId}`);
+      
+      const analysisRecord = {
+        startupId: startupId,
+        analysisType: analysisType,
+        analysisData: analysisData,
+        status: 'completed',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      
+      const docRef = await addDoc(collection(db, 'individual_analyses'), analysisRecord);
+      console.log(`✅ Individual analysis saved with ID: ${docRef.id}`);
+      return docRef.id;
+    } catch (error) {
+      console.error(`Error saving individual analysis (${analysisType}):`, error);
+      throw error;
+    }
+  }
+
+  // Get individual analysis results for a startup
+  async getIndividualAnalyses(startupId, analysisType = null) {
+    try {
+      console.log(`🔍 Fetching individual analyses for startup: ${startupId}`);
+      
+      let q = query(
+        collection(db, 'individual_analyses'),
+        where('startupId', '==', startupId),
+        orderBy('createdAt', 'desc')
+      );
+      
+      if (analysisType) {
+        q = query(
+          collection(db, 'individual_analyses'),
+          where('startupId', '==', startupId),
+          where('analysisType', '==', analysisType),
+          orderBy('createdAt', 'desc')
+        );
+      }
+      
+      const querySnapshot = await getDocs(q);
+      const analyses = [];
+      
+      querySnapshot.forEach((doc) => {
+        analyses.push({
+          id: doc.id,
+          ...doc.data()
+        });
+      });
+      
+      console.log(`📊 Found ${analyses.length} individual analyses`);
+      return analyses;
+    } catch (error) {
+      console.error('Error fetching individual analyses:', error);
       throw error;
     }
   }

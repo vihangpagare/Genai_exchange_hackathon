@@ -1,28 +1,49 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileText, AlertCircle, Cloud, Sparkles, Briefcase, X } from 'lucide-react';
+import firebaseService from '../services/firebaseService';
 
-const FileUpload = ({ onFileUpload, accept, maxSize }) => {
+const FileUpload = ({ onFileUpload, accept, maxSize, startupId, category = 'general' }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const onDrop = useCallback((acceptedFiles, rejectedFiles) => {
+  const onDrop = useCallback(async (acceptedFiles, rejectedFiles) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
       setSelectedFile(file);
-      
-      // Simulate upload progress
+      setIsUploading(true);
       setUploadProgress(0);
-      const interval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            onFileUpload(file);
-            return 100;
+      
+      try {
+        console.log('Starting file upload to Firebase Storage...');
+        console.log('File:', file);
+        console.log('Startup ID:', startupId);
+        console.log('Category:', category);
+        
+        // Upload to Firebase Storage with progress tracking
+        const uploadResult = await firebaseService.uploadFile(
+          file, 
+          `startups/${startupId}/documents/${category}/${file.name}`,
+          (progress) => {
+            console.log('Upload progress:', progress + '%');
+            setUploadProgress(progress);
           }
-          return prev + 10;
-        });
-      }, 100);
+        );
+        
+        console.log('Upload completed successfully:', uploadResult);
+        
+        // Call the callback with the upload result
+        onFileUpload(uploadResult);
+        setUploadProgress(100);
+      } catch (error) {
+        console.error('Upload failed:', error);
+        alert('Upload failed: ' + error.message);
+        setSelectedFile(null);
+        setUploadProgress(0);
+      } finally {
+        setIsUploading(false);
+      }
     }
     
     if (rejectedFiles.length > 0) {
@@ -33,7 +54,7 @@ const FileUpload = ({ onFileUpload, accept, maxSize }) => {
         alert('Invalid file type. Please upload PDF, PPTX, or PPT files only.');
       }
     }
-  }, [onFileUpload, maxSize]);
+  }, [onFileUpload, maxSize, startupId, category]);
 
   const {
     getRootProps,

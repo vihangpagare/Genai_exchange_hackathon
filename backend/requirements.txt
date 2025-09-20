@@ -49,3 +49,20 @@ pytest-asyncio==0.21.1
 tenacity==8.5.0
 regex==2025.8.29
 deprecated==1.2.14
+
+# New AI Analysis Dependencies
+exa-py==1.15.6
+
+# Database and Caching
+sqlalchemy==2.0.23
+alembic==1.13.1
+psycopg2-binary==2.9.9
+redis==5.0.1
+
+# Background Tasks
+celery==5.3.4
+kombu==5.3.4
+
+# Additional Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4

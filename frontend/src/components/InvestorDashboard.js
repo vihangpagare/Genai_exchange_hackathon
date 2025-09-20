@@ -1,37 +1,79 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Filter, TrendingUp, Building2, MapPin, Calendar, Star, LogOut, User, Eye, BarChart3, AlertTriangle, PieChart, Sparkles, Zap, Heart, Rocket, Target, Shield, Users, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, Suspense, lazy, memo, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Filter, TrendingUp, Building2, MapPin, Calendar, Star, LogOut, User, Eye, BarChart3, AlertTriangle, PieChart, Sparkles, Zap, Heart, Rocket, Target, Shield, Users, ChevronRight, X, Brain, CheckCircle, AlertCircle, RefreshCw, Download } from 'lucide-react';
 import firebaseService from '../services/firebaseService';
+import { downloadStartupReportPDF } from '../utils/pdfGenerator';
+import LoadingSpinner from './LoadingSpinner';
+import SkeletonLoader from './SkeletonLoader';
+import LazyWrapper from './LazyWrapper';
+import useLoading from '../hooks/useLoading';
 
-const InvestorDashboard = ({ user, onLogout, onStartupSelect }) => {
+const InvestorDashboard = memo(({ user, onLogout, onStartupSelect }) => {
+  const navigate = useNavigate();
   const [startups, setStartups] = useState([]);
-  const [filteredStartups, setFilteredStartups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
+  const [selectedStartup, setSelectedStartup] = useState(null);
+  const [startupAnalysis, setStartupAnalysis] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [investorProfile, setInvestorProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
-  const categories = [
+  const categories = useMemo(() => [
     'all', 'fintech', 'healthtech', 'edtech', 'saas', 'ecommerce',
     'ai', 'machine learning', 'blockchain', 'cybersecurity',
     'biotech', 'cleantech', 'agtech', 'proptech'
-  ];
+  ], []);
 
-  const sortOptions = [
+  const sortOptions = useMemo(() => [
     { value: 'recent', label: 'Most Recent' },
     { value: 'name', label: 'Name A-Z' },
     { value: 'industry', label: 'Industry' },
     { value: 'stage', label: 'Stage' }
-  ];
+  ], []);
 
-  useEffect(() => {
-    loadStartups();
-  }, []);
+  const loadInvestorProfile = useCallback(async () => {
+    try {
+      setProfileLoading(true);
+      console.log('🔍 Loading investor profile for user:', user.uid);
+      
+      const investorData = await firebaseService.getInvestorByUserId(user.uid);
+      console.log('🔍 Investor profile loaded:', investorData);
+      
+      if (investorData) {
+        setInvestorProfile(investorData);
+        
+        // Check if profile is complete (has essential fields)
+        const isProfileComplete = investorData.firmName && 
+                                 investorData.investorType && 
+                                 investorData.focusIndustries && 
+                                 investorData.focusIndustries.length > 0 &&
+                                 investorData.investmentStages && 
+                                 investorData.investmentStages.length > 0;
+        
+        if (!isProfileComplete) {
+          console.log('⚠️ Investor profile incomplete, redirecting to profile setup');
+          navigate('/profile');
+          return;
+        }
+      } else {
+        console.log('ℹ️ No investor profile found, redirecting to profile setup');
+        navigate('/profile');
+        return;
+      }
+    } catch (error) {
+      console.error('Error loading investor profile:', error);
+      // On error, redirect to profile setup
+      navigate('/profile');
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [user.uid, navigate]);
 
-  useEffect(() => {
-    filterAndSortStartups();
-  }, [startups, searchTerm, selectedCategory, sortBy]);
-
-  const loadStartups = async () => {
+  const loadStartups = useCallback(async () => {
     try {
       setLoading(true);
       const allStartups = await firebaseService.getAllStartups();
@@ -41,9 +83,51 @@ const InvestorDashboard = ({ user, onLogout, onStartupSelect }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const filterAndSortStartups = () => {
+  useEffect(() => {
+    loadInvestorProfile();
+  }, [loadInvestorProfile]);
+
+  useEffect(() => {
+    // Only load startups if profile is complete
+    if (investorProfile && !profileLoading) {
+      loadStartups();
+    }
+  }, [investorProfile, profileLoading, loadStartups]);
+
+  const loadStartupAnalysis = useCallback(async (startupId) => {
+    try {
+      setAnalysisLoading(true);
+      const analyses = await firebaseService.getAnalysesByStartup(startupId);
+      if (analyses && analyses.length > 0) {
+        // Get the most recent analysis
+        const latestAnalysis = analyses[0];
+        setStartupAnalysis(latestAnalysis);
+      } else {
+        setStartupAnalysis(null);
+      }
+    } catch (error) {
+      console.error('Error loading startup analysis:', error);
+      setStartupAnalysis(null);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }, []);
+
+  const handleStartupClick = useCallback(async (startup) => {
+    setSelectedStartup(startup);
+    setShowAnalysisModal(true);
+    await loadStartupAnalysis(startup.id);
+  }, [loadStartupAnalysis]);
+
+  const handleDownloadPDF = useCallback(() => {
+    if (selectedStartup) {
+      downloadStartupReportPDF(selectedStartup, startupAnalysis);
+    }
+  }, [selectedStartup, startupAnalysis]);
+
+  const filteredStartups = useMemo(() => {
     let filtered = startups;
 
     // Filter by search term
@@ -78,8 +162,8 @@ const InvestorDashboard = ({ user, onLogout, onStartupSelect }) => {
       }
     });
 
-    setFilteredStartups(filtered);
-  };
+    return filtered;
+  }, [startups, searchTerm, selectedCategory, sortBy]);
 
   const getStageColor = (stage) => {
     const colors = {
@@ -110,6 +194,18 @@ const InvestorDashboard = ({ user, onLogout, onStartupSelect }) => {
     };
     return icons[industry?.toLowerCase()] || '🚀';
   };
+
+  // Show loading spinner while checking profile
+  if (profileLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
+        <div className="text-center">
+          <LoadingSpinner size="lg" />
+          <p className="mt-4 text-gray-600">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -255,13 +351,18 @@ const InvestorDashboard = ({ user, onLogout, onStartupSelect }) => {
           </div>
         </div>
 
-        {/* Startups Grid */}
-        {loading ? (
-          <div className="flex flex-col justify-center items-center py-24">
-            <div className="animate-spin rounded-full h-20 w-20 border-b-4 border-purple-500 mb-6"></div>
-            <p className="text-xl font-bold text-gray-600">Loading amazing startups...</p>
-          </div>
-        ) : filteredStartups.length === 0 ? (
+        {/* Startups Grid - Lazy Loaded */}
+        <LazyWrapper 
+          skeletonType="card" 
+          skeletonCount={6}
+          delay={200}
+        >
+          {loading ? (
+            <div className="flex flex-col justify-center items-center py-24">
+              <div className="animate-spin rounded-full h-20 w-20 border-b-4 border-purple-500 mb-6"></div>
+              <p className="text-xl font-bold text-gray-600">Loading amazing startups...</p>
+            </div>
+          ) : filteredStartups.length === 0 ? (
           <div className="text-center py-24">
             <div className="w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-8">
               <Building2 className="h-12 w-12 text-white" />
@@ -275,7 +376,7 @@ const InvestorDashboard = ({ user, onLogout, onStartupSelect }) => {
               <div
                 key={startup.id}
                 className="bg-white rounded-3xl shadow-lg border-2 border-gray-100 hover:shadow-2xl transition-all duration-300 p-8 group hover:-translate-y-2 hover:border-purple-200 cursor-pointer"
-                onClick={() => onStartupSelect(startup)}
+                onClick={() => handleStartupClick(startup)}
               >
                 {/* Header */}
                 <div className="flex items-start justify-between mb-6">
@@ -321,18 +422,234 @@ const InvestorDashboard = ({ user, onLogout, onStartupSelect }) => {
                       {new Date(startup.createdAt?.toDate?.() || startup.createdAt).toLocaleDateString()}
                     </span>
                   </div>
-                  <div className="flex items-center space-x-2 text-purple-600 hover:text-pink-600 font-bold transition-colors duration-200">
-                    <span>View Details</span>
-                    <ChevronRight className="h-4 w-4" />
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        downloadStartupReportPDF(startup, null);
+                      }}
+                      className="flex items-center space-x-1 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors duration-200 text-xs font-bold"
+                    >
+                      <Download className="h-3 w-3" />
+                      <span>PDF</span>
+                    </button>
+                    <div className="flex items-center space-x-2 text-purple-600 hover:text-pink-600 font-bold transition-colors duration-200">
+                      <span>View Details</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </div>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         )}
+        </LazyWrapper>
+
+        {/* Analysis Modal */}
+        {showAnalysisModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="p-3 bg-white bg-opacity-20 rounded-2xl">
+                      <Brain className="h-8 w-8" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black">Startup Analysis</h2>
+                      <p className="text-purple-100">
+                        {selectedStartup?.name} - {selectedStartup?.industry}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowAnalysisModal(false)}
+                    className="p-2 hover:bg-white hover:bg-opacity-20 rounded-xl transition-colors duration-200"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                {analysisLoading ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mb-4"></div>
+                    <p className="text-lg font-bold text-gray-600">Loading analysis...</p>
+                  </div>
+                ) : startupAnalysis ? (
+                  <div className="space-y-6">
+                    {/* Analysis Overview */}
+                    <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <BarChart3 className="h-6 w-6 text-blue-600" />
+                        <h3 className="text-xl font-black text-gray-900">Analysis Overview</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-black text-blue-600">
+                            {startupAnalysis.analysisType || 'Comprehensive'}
+                          </div>
+                          <div className="text-sm text-blue-700 font-bold">Analysis Type</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-black text-blue-600">
+                            {startupAnalysis.status || 'Completed'}
+                          </div>
+                          <div className="text-sm text-blue-700 font-bold">Status</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-black text-blue-600">
+                            {new Date(startupAnalysis.createdAt?.toDate?.() || startupAnalysis.createdAt).toLocaleDateString()}
+                          </div>
+                          <div className="text-sm text-blue-700 font-bold">Date</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Analysis Results */}
+                    {startupAnalysis.results && (
+                      <div className="space-y-6">
+                        {/* Fact Check Results */}
+                        {startupAnalysis.results.factCheck && (
+                          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-emerald-100">
+                            <div className="flex items-center space-x-3 mb-4">
+                              <Shield className="h-6 w-6 text-emerald-600" />
+                              <h4 className="text-xl font-black text-gray-900">Fact Check Analysis</h4>
+                            </div>
+                            <div className="prose max-w-none">
+                              <div className="bg-gray-50 rounded-xl p-4">
+                                <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono">
+                                  {typeof startupAnalysis.results.factCheck === 'string' 
+                                    ? startupAnalysis.results.factCheck 
+                                    : JSON.stringify(startupAnalysis.results.factCheck, null, 2)}
+                                </pre>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Market Size Analysis */}
+                        {startupAnalysis.results.marketSize && (
+                          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-blue-100">
+                            <div className="flex items-center space-x-3 mb-4">
+                              <TrendingUp className="h-6 w-6 text-blue-600" />
+                              <h4 className="text-xl font-black text-gray-900">Market Size Analysis</h4>
+                            </div>
+                            <div className="prose max-w-none">
+                              <div className="bg-gray-50 rounded-xl p-4">
+                                <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono">
+                                  {typeof startupAnalysis.results.marketSize === 'string' 
+                                    ? startupAnalysis.results.marketSize 
+                                    : JSON.stringify(startupAnalysis.results.marketSize, null, 2)}
+                                </pre>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Product Information Analysis */}
+                        {startupAnalysis.results.productInfo && (
+                          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-purple-100">
+                            <div className="flex items-center space-x-3 mb-4">
+                              <Target className="h-6 w-6 text-purple-600" />
+                              <h4 className="text-xl font-black text-gray-900">Product Information Analysis</h4>
+                            </div>
+                            <div className="prose max-w-none">
+                              <div className="bg-gray-50 rounded-xl p-4">
+                                <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono">
+                                  {typeof startupAnalysis.results.productInfo === 'string' 
+                                    ? startupAnalysis.results.productInfo 
+                                    : JSON.stringify(startupAnalysis.results.productInfo, null, 2)}
+                                </pre>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Competition Analysis */}
+                        {startupAnalysis.results.competition && (
+                          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-orange-100">
+                            <div className="flex items-center space-x-3 mb-4">
+                              <Search className="h-6 w-6 text-orange-600" />
+                              <h4 className="text-xl font-black text-gray-900">Competition Analysis</h4>
+                            </div>
+                            <div className="prose max-w-none">
+                              <div className="bg-gray-50 rounded-xl p-4">
+                                <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono">
+                                  {typeof startupAnalysis.results.competition === 'string' 
+                                    ? startupAnalysis.results.competition 
+                                    : JSON.stringify(startupAnalysis.results.competition, null, 2)}
+                                </pre>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* No Analysis Available */}
+                    {!startupAnalysis.results && (
+                      <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-8 text-center">
+                        <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+                        <h3 className="text-xl font-black text-yellow-800 mb-2">No Analysis Available</h3>
+                        <p className="text-yellow-700">
+                          This startup hasn't completed any AI analysis yet. Analysis will appear here once the startup submits their data and runs analysis.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-8 text-center">
+                    <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                    <h3 className="text-xl font-black text-red-800 mb-2">Error Loading Analysis</h3>
+                    <p className="text-red-700">
+                      There was an error loading the analysis for this startup. Please try again.
+                    </p>
+                    <button
+                      onClick={() => loadStartupAnalysis(selectedStartup.id)}
+                      className="mt-4 px-6 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-colors duration-200 flex items-center space-x-2 mx-auto"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      <span>Retry</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="bg-gray-50 px-6 py-4 flex justify-between items-center">
+                <button
+                  onClick={handleDownloadPDF}
+                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold hover:shadow-lg transition-all duration-200 flex items-center space-x-2"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Download PDF Report</span>
+                </button>
+                <div className="flex space-x-4">
+                  <button
+                    onClick={() => setShowAnalysisModal(false)}
+                    className="px-6 py-3 bg-gray-500 text-white rounded-xl font-bold hover:bg-gray-600 transition-colors duration-200"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={() => onStartupSelect(selectedStartup)}
+                    className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-xl font-bold hover:shadow-lg transition-all duration-200 flex items-center space-x-2"
+                  >
+                    <Eye className="h-4 w-4" />
+                    <span>View Full Profile</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
-};
+});
 
 export default InvestorDashboard;

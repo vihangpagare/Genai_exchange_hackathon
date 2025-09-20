@@ -1,156 +1,170 @@
 """
-main.py — Fact-checking agent runner
-• Sessions live only in RAM (InMemorySessionService)  
-• Artifacts are persisted (in-memory)
+Main FastAPI application for InvestAI platform.
+Consolidates all API routes and provides a unified backend interface.
 """
 
-import asyncio, os
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
+import logging
+import time
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.adk.artifacts import InMemoryArtifactService
-from factcheck_agent import factcheck_agent,factcheck_pipeline
-from business_model_agent import startup_economics_analyzer
-from market_intelligence import market_intelligence_analyzer
-from risk_assesment import risk_assessment_analyzer
-from google.genai import types
 
+# Load environment variables from .env file
 load_dotenv()
 
-# ────────────────────────────────────────────────────────────────
-# 1. Session service - in-memory, wiped when the app exits
-# ────────────────────────────────────────────────────────────────
-session_service = InMemorySessionService() # sessions are *not* saved to disk
+from config import get_settings, validate_api_keys
+from api.routers import analysis, profiles, chatbot, meetings
+from utils.exceptions import InvestAIException
 
-# ────────────────────────────────────────────────────────────────
-# 2. Artifact service (in-memory)
-# ────────────────────────────────────────────────────────────────
-artifact_service = InMemoryArtifactService()
-print("⚠️ Using in-memory artifacts")
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # This ensures logs go to terminal
+        logging.FileHandler('investai.log')  # Also save to file
+    ]
+)
+logger = logging.getLogger(__name__)
 
-# ────────────────────────────────────────────────────────────────
-# 3. Helper function for async calls (EXACTLY like your utils.py)
-# ────────────────────────────────────────────────────────────────
-# async def call_agent_async(runner, user_id, session_id, query):
-#     """Call the agent asynchronously - COPIED from your utils.py"""
-#     content = types.Content(role="user", parts=[types.Part(text=query)])
-#     print(f"\n--- Running Query: {query} ---")
-    
-#     last_response = None
-#     try:
-#         async for event in runner.run_async(
-#             user_id=user_id,
-#             session_id=session_id,
-#             new_message=content,
-#         ):
-#             response = await _process_event(event)
-#             if response:
-#                 last_response = response
-                
-#     except Exception as exc:
-#         error_msg = f"Error during agent call: {exc}"
-#         print(error_msg)
-#         return error_msg
-    
-#     return last_response or "No response received from agent"
+# Get settings
+settings = get_settings()
 
-# async def _process_event(event):
-#     """Extract text parts from an ADK streaming event - COPIED from your utils.py"""
-#     final_response = None
-#     if event.content and event.content.parts:
-#         for part in event.content.parts:
-#             text = getattr(part, "text", "").strip()
-#             if text:
-#                 final_response = text
-#                 print(f"🤖 {text}")
-#     return final_response
-async def call_agent_async(runner, user_id, session_id, query, final_agent_name):
-    """Call the agent and only display output from the final agent"""
-    content = types.Content(role="user", parts=[types.Part(text=query)])
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events."""
+    # Startup
+    logger.info("Starting InvestAI backend...")
     
-    # print(f"\n--- Analyzing with Sequential Agent Pipeline ---")
-    # print("🔄 Running parallel economics analysis...")
-    # print("📊 Generating integrated report...")
+    # Validate configuration
+    if not validate_api_keys():
+        logger.error("Invalid configuration. Please check your .env file.")
+        raise RuntimeError("Invalid configuration")
     
-    final_response = None
+    logger.info("InvestAI backend started successfully")
     
-    try:
-        async for event in runner.run_async(
-            user_id=user_id,
-            session_id=session_id,
-            new_message=content,
-        ):
-            response = await _process_event_filtered(event, final_agent_name)
-            if response:
-                final_response = response
-                
-    except Exception as exc:
-        error_msg = f"Error during agent call: {exc}"
-        print(error_msg)
-        return error_msg
+    yield
     
-    return final_response or "No response received from final report agent"
+    # Shutdown
+    logger.info("Shutting down InvestAI backend...")
 
-async def _process_event_filtered(event, final_agent_name):
-    """Process events and only display output from the specified final agent"""
-    
-    # Check if this event is from the final agent we want to show
-    event_author = getattr(event, 'author', None)
-    
-    final_response = None
-    
-    if event.content and event.content.parts:
-        for part in event.content.parts:
-            text = getattr(part, "text", "").strip()
-            if text:
-                # Only display and return text from the final agent
-                if event_author == final_agent_name:
-                    print(f"🤖 {text}")
-                    final_response = text
-                # Suppress output from all other agents (parallel sub-agents)
-                # They still run, but their output is hidden from user
-    
-    return final_response
+# Create FastAPI application
+app = FastAPI(
+    title="InvestAI Platform API",
+    description="AI-powered startup analysis and investor matching platform",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan
+)
 
-# ────────────────────────────────────────────────────────────────
-# 4. Main event loop (exactly following your pattern)
-# ────────────────────────────────────────────────────────────────
-async def main_async() -> None:
-    APP_NAME = "FactCheck-Studio"
-    USER_ID = "Investment_Analyst"
-    
-    # Always start a fresh session — no DB lookup / resume
-    session = await session_service.create_session(
-        app_name=APP_NAME,
-        user_id=USER_ID,
-        state={}  # empty initial state
+# Add middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["localhost", "127.0.0.1", "*.vercel.app"]
+)
+
+# Request timing middleware
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
+
+# Custom exception handler for InvestAI exceptions
+@app.exception_handler(InvestAIException)
+async def investai_exception_handler(request: Request, exc: InvestAIException):
+    """Handle InvestAI custom exceptions."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.to_dict()
     )
-    
-    SESSION_ID = session.id
-    print(f"🔄 New ephemeral session: {SESSION_ID}")
-    
-    runner = Runner(
-        agent=risk_assessment_analyzer,
-        app_name=APP_NAME,
-        session_service=session_service,
-        artifact_service=artifact_service
+
+# Global exception handler for unhandled exceptions
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Handle unhandled exceptions."""
+    logger.error(f"Unhandled exception: {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "error_type": "internal_error",
+            "message": "An unexpected error occurred. Please try again later.",
+            "details": {
+                "request_id": getattr(request.state, "request_id", None),
+                "exception_type": type(exc).__name__
+            }
+        }
     )
-    
-    # print("\nWelcome to FactCheck-Studio! (type 'exit' to quit)")
-    # print("📋 You can:")
-    # print("   • Paste startup data for fact-checking")
-    # print("   • Ask to verify specific claims") 
-    # print("   • Request market data validation")
-    # print("   • Check team credentials\n")
-    
-    while True:
-        user_input = input("You: ")
-        if user_input.lower() in {"exit", "quit"}:
-            
-            break
-        
-        # Use the corrected call_agent_async function
-        await call_agent_async(runner, USER_ID, SESSION_ID, user_input, final_agent_name="RiskReport_Agent")
+
+# Include routers
+app.include_router(analysis.router)
+app.include_router(profiles.router)
+app.include_router(chatbot.router)
+app.include_router(meetings.router)
+
+# Root endpoint
+@app.get("/")
+async def root():
+    """Root endpoint with API information."""
+    return {
+        "message": "InvestAI Platform API",
+        "version": "1.0.0",
+        "status": "running",
+        "docs": "/docs",
+        "health": "/health"
+    }
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {
+        "status": "healthy",
+        "timestamp": time.time(),
+        "version": "1.0.0",
+        "environment": settings.environment
+    }
+
+# API status endpoint
+@app.get("/api/status")
+async def api_status():
+    """API status and configuration info."""
+    return {
+        "api_status": "operational",
+        "version": "1.0.0",
+        "environment": settings.environment,
+        "debug_mode": settings.debug,
+        "features": {
+            "analysis": True,
+            "profiles": True,
+            "authentication": True,
+            "caching": False,  # Will be True when Redis is implemented
+            "background_tasks": False  # Will be True when Celery is implemented
+        }
+    }
 
 if __name__ == "__main__":
-    asyncio.run(main_async())
+    import uvicorn
+    
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.debug,
+        log_level=settings.log_level.lower()
+    )
