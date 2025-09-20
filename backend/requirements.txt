@@ -62,7 +62,7 @@ google-cloud-resource-manager==1.14.2
 google-cloud-secret-manager==2.24.0
 google-cloud-spanner==3.57.0
 google-cloud-speech==2.33.0
-google-cloud-storage==3.4.0
+google-cloud-storage==2.19.0 
 google-cloud-trace==1.16.2
 google-cloud-vision==3.10.2
 google-crc32c==1.7.1
@@ -131,7 +131,7 @@ prompt_toolkit==3.0.52
 proto-plus==1.26.1
 protobuf==5.29.5
 prov==2.1.1
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.7
 puremagic==1.30
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
