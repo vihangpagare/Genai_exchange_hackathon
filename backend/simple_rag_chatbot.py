@@ -6,7 +6,6 @@ A standalone chatbot that works with the existing agent infrastructure.
 import asyncio
 import logging
 from typing import Dict, List, Any, Optional
-import google.generativeai as genai
 from config import get_settings
 from utils.agent_runner import AgentRunner
 import json
