@@ -149,7 +149,6 @@ python-jose==3.3.0
 python-multipart==0.0.20
 python-pptx==1.0.2
 pytz==2025.2
-pywin32==311
 pyxnat==1.6.3
 pyyaml==6.0.2
 rdflib==7.1.4
