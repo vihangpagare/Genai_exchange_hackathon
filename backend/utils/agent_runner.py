@@ -6,7 +6,7 @@ Provides a unified interface for running AI agents with proper error handling an
 import asyncio
 import logging
 from typing import Any, Dict, Optional, List
-import google.generativeai as genai
+from langchain_google_genai import ChatGoogleGenerativeAI
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -14,28 +14,15 @@ settings = get_settings()
 
 class AgentRunner:
     """Centralized agent runner with error handling and configuration management."""
-    
+
     def __init__(self):
-        # Configure the API key
-        genai.configure(api_key=settings.google_api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        # Initialise Gemini via LangChain wrapper (API key picked up from env var GOOGLE_API_KEY)
+        self.model = ChatGoogleGenerativeAI(model_name="gemini-1.5-flash")
         self.safety_settings = [
-            {
-                "category": "HARM_CATEGORY_HATE_SPEECH",
-                "threshold": "BLOCK_NONE"
-            },
-            {
-                "category": "HARM_CATEGORY_HARASSMENT", 
-                "threshold": "BLOCK_NONE"
-            },
-            {
-                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                "threshold": "BLOCK_NONE"
-            },
-            {
-                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                "threshold": "BLOCK_NONE"
-            }
+            {"category": "HARM_CATEGORY_HATE_SPEECH",       "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HARASSMENT",        "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
         ]
     
     async def run_agent_async(
@@ -105,15 +92,13 @@ class AgentRunner:
         raise AgentError(f"{agent_name} agent failed after {max_retries + 1} attempts", agent_name, "MAX_RETRIES")
     
     async def _execute_agent(self, prompt: str) -> str:
-        """Execute the agent with the given prompt."""
+        """Run the prompt through Gemini via LangChain and return the text response."""
         try:
-            response = self.model.generate_content(
-                prompt,
-                safety_settings=self.safety_settings
-            )
-            return response.text
+            # agenerate returns an LCAsyncRunner object; we extract the first generation’s text
+            response = await self.model.agenerate(prompts=[prompt])
+            return response.generations[0][0].text
         except Exception as e:
-            logger.error(f"Agent execution failed: {str(e)}")
+            logger.error(f"Agent execution failed: {e}")
             raise
     
     def _prepare_prompt(self, prompt: str, input_data: Any = None) -> str:
