@@ -17,7 +17,7 @@ class AgentRunner:
 
     def __init__(self):
         # Initialise Gemini via LangChain wrapper (API key picked up from env var GOOGLE_API_KEY)
-        self.model = ChatGoogleGenerativeAI(model_name="gemini-1.5-flash")
+        self.model = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
         self.safety_settings = [
             {"category": "HARM_CATEGORY_HATE_SPEECH",       "threshold": "BLOCK_NONE"},
             {"category": "HARM_CATEGORY_HARASSMENT",        "threshold": "BLOCK_NONE"},
