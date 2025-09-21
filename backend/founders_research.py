@@ -4,7 +4,7 @@ from exa_py import Exa
 import os
 
 # Setup API keys
-os.environ["GOOGLE_API_KEY"] = "AIzaSyBhlPg4FGWj6VGc5Io-4shslkv2eilAlUs"
+os.environ["GOOGLE_API_KEY"] = "your_api_key"
 
 # Initialize Exa client
 exa = Exa(api_key=os.environ.get("EXA_API_KEY"))
@@ -160,5 +160,6 @@ founder_research_agent = LlmAgent(
     instruction=founder_research_instruction,
     tools=[exa_search]
 )
+
 
 
