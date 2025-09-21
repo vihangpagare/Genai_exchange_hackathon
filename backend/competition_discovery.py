@@ -6,7 +6,7 @@ import json
 from google.adk.tools import google_search
 
 # Setup API keys
-os.environ["GOOGLE_API_KEY"] = "AIzaSyBhlPg4FGWj6VGc5Io-4shslkv2eilAlUs"
+os.environ["GOOGLE_API_KEY"] = "your_api_key"
 from exa_py import Exa
 import os
 # LLM setup
@@ -299,4 +299,5 @@ competitor_discovery_analyzer = SequentialAgent(
         deep_research_agent
     ]
 )
+
 
