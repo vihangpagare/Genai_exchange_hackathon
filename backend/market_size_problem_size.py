@@ -4,7 +4,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 import os
 
 # Setup API key
-os.environ["GOOGLE_API_KEY"] = "AIzaSyBhlPg4FGWj6VGc5Io-4shslkv2eilAlUs"
+os.environ["GOOGLE_API_KEY"] = "your_api_key"
 
 # LLM setup
 llm = ChatGoogleGenerativeAI(
@@ -73,4 +73,5 @@ market_opportunity_agent = LlmAgent(
     description="Gathers data and analysis on Market Size and Problem Size for a startup",
     instruction=market_opportunity_instruction,
     tools=[google_search]
+
 )
