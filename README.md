@@ -171,6 +171,6 @@ Educational and development purposes. Comply with Google's API terms of service.
 
 ---
 
-**Built with ❤️ using Google Gemini AI, Firebase, and modern web technologies**
+**Built with ❤️ using Google Gemini AI, Firebase and React**
 
 *InvestAI - Transforming startup investment through AI-powered insights*
