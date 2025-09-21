@@ -12,7 +12,6 @@ An AI-powered platform connecting startups and investors with comprehensive anal
 - **Competition Analysis** - Competitor discovery and landscape
 - **Founders Research** - Team and founder analysis
 - **Risk Assessment** - Investment risk evaluation
-- **Investment Recommendation** - AI-powered investment advice
 - **Document Analysis** - Pitch deck and document processing
 
 ### 📅 **Meeting Scheduler**
@@ -132,7 +131,7 @@ GOOGLE_API_KEY=your-google-api-key
 ```
 
 ### Firebase Setup
-1. Create Firebase project
+1. Create a Firebase project
 2. Enable Firestore Database
 3. Update `frontend/src/providers/firebase.js`
 
