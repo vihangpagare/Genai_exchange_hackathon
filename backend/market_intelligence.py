@@ -4,7 +4,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 import os
 
 # Setup API key
-os.environ["GOOGLE_API_KEY"] = "AIzaSyBhlPg4FGWj6VGc5Io-4shslkv2eilAlUs"
+os.environ["GOOGLE_API_KEY"] = "your_api_key"
 
 # LLM setup
 llm = ChatGoogleGenerativeAI(
@@ -1000,3 +1000,4 @@ market_intelligence_analyzer = SequentialAgent(
         market_intel_report_agent     # Stage 2: Synthesize into intelligence report
     ]
 )
+
