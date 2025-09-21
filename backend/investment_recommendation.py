@@ -3,7 +3,7 @@ from google.adk.tools import google_search          # “think” tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 import os, datetime
 
-os.environ["GOOGLE_API_KEY"] = "AIzaSyBhlPg4FGWj6VGc5Io-4shslkv2eilAlUs"
+os.environ["GOOGLE_API_KEY"] = "your_api_key"
 
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash",
@@ -90,4 +90,5 @@ recommendation_agent = LlmAgent(
     instruction=recommendation_instruction,
     tools=[think_tool]   # exposes the mini think tool
 )
+
 
