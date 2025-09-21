@@ -4,7 +4,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 import os
 
 # Setup API key
-os.environ["GOOGLE_API_KEY"] = "AIzaSyBhlPg4FGWj6VGc5Io-4shslkv2eilAlUs"
+os.environ["GOOGLE_API_KEY"] = "your_api_key"
 
 # LLM setup with increased max_tokens
 llm = ChatGoogleGenerativeAI(
@@ -481,3 +481,4 @@ risk_assessment_analyzer = SequentialAgent(
         risk_report_agent    # Stage 2: Comprehensive search-based synthesis
     ]
 )
+
