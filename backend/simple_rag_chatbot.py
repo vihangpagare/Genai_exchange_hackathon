@@ -303,12 +303,12 @@ def answer_query(query, dataframe, top_k=5):
 
     # Build concise context: only include short excerpts to keep prompt size reasonable
     # Take first N chars of each passage to avoid huge prompts; you can adjust excerpt_len
-    excerpt_len = 1600  # adjust depending on token limits
+      # adjust depending on token limits
     context_pieces = []
     for i, p in enumerate(passages, 1):
         excerpt = p['text']
-        if len(excerpt) > excerpt_len:
-            excerpt = excerpt[:excerpt_len].rsplit("\n", 1)[0] + " ...[truncated]"
+        
+        excerpt = excerpt.rsplit("\n", 1)[0] + " ...[truncated]"
         context_pieces.append(f"[{i}] ({p['type'].upper()}): {p['title']}\n{excerpt}")
 
     context = "\n\n".join(context_pieces)
@@ -320,7 +320,7 @@ def answer_query(query, dataframe, top_k=5):
         "Cite the specific sources inline using bracketed numeric citations that map to the context items: "
         "for example [1], [2]. If the context does not contain the answer, respond: "
         "'I don't know based on the provided documents.'\n"
-        "Keep answers concise (3-6 sentences) and highlight any assumptions or missing data needed for a full evaluation."
+        "Highlight any assumptions or missing data needed for a full evaluation."
     )
 
     user_prompt = (
