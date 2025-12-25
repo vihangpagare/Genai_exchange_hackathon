@@ -17,8 +17,8 @@ from exa_py import Exa
 import os
 
 # Setup API keys
-os.environ["GOOGLE_API_KEY"] = "AIzaSyBhlPg4FGWj6VGc5Io-4shslkv2eilAlUs"
-os.environ["EXA_API_KEY"] = '25dffdbd-a899-4202-a3a2-caf4fe6b5902'
+os.environ["GOOGLE_API_KEY"] = "your-api-key"
+os.environ["EXA_API_KEY"] = 'your-api-key'
 
 # Initialize Exa client
 exa = Exa(api_key=os.environ["EXA_API_KEY"])
@@ -296,4 +296,5 @@ Product_intelligence_agent = SequentialAgent(
     description="Complete product review intelligence system with parallel analysis and professional reporting",
     sub_agents=[product_review_agent, report_making_agent],
 )
+
 
