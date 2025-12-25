@@ -16,8 +16,8 @@ from tavily import TavilyClient
 
 
 # Setup API keys
-os.environ["GOOGLE_API_KEY"] = "AIzaSyBhlPg4FGWj6VGc5Io-4shslkv2eilAlUs"
-os.environ["EXA_API_KEY"] = '25dffdbd-a899-4202-a3a2-caf4fe6b5902'
+os.environ["GOOGLE_API_KEY"] = "your-api_key"
+os.environ["EXA_API_KEY"] = 'your-apo_key'
   # Replace with your Tavily API key
 
 from exa_py import Exa
@@ -295,3 +295,4 @@ competitor_discovery_analyzer = SequentialAgent(
         research_delegator
     ]
 )
+
